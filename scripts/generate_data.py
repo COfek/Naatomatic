@@ -22,8 +22,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from naatomatic.db import DEFAULT_DB_PATH, create_all, create_session, get_engine
-from naatomatic.enums import (
+from models.db import DEFAULT_DB_PATH, create_all, create_session, get_engine
+from models.enums import (
     DEPOT_PERSONAL_NUMBER,
     FORMATTING_DURATION_DAYS,
     AssignmentStatus,
@@ -42,7 +42,7 @@ from naatomatic.enums import (
     TicketType,
     TimeOfDay,
 )
-from naatomatic import models as m
+from models import tables as m
 
 YEAR = 2026
 YEAR_START = date(YEAR, 1, 1)

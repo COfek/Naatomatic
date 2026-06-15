@@ -25,8 +25,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from naatomatic.db import Base
-from naatomatic.enums import (
+from models.db import Base
+from models.enums import (
     AssignmentStatus,
     CalendarKind,
     CalendarSubjectType,

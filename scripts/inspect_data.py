@@ -10,9 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import func, select
 
-from naatomatic.db import DEFAULT_DB_PATH, create_session, get_engine
-from naatomatic.enums import DEPOT_PERSONAL_NUMBER, EquipmentKind, Population, ShiftType
-from naatomatic import models as m
+from models.db import DEFAULT_DB_PATH, create_session, get_engine
+from models.enums import DEPOT_PERSONAL_NUMBER, EquipmentKind, Population, ShiftType
+from models import tables as m
 
 
 def main() -> None:

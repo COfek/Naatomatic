@@ -39,8 +39,8 @@ def get_engine(db_path: str | Path = DEFAULT_DB_PATH, *, echo: bool = False) -> 
 
 def create_all(engine: Engine) -> None:
     """Create every table defined on the declarative base."""
-    # Import models so they register on Base.metadata before create_all.
-    from naatomatic import models  # noqa: F401
+    # Import the ORM tables so they register on Base.metadata before create_all.
+    from models import tables  # noqa: F401
 
     Base.metadata.create_all(engine)
 
