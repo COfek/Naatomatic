@@ -513,10 +513,38 @@ A single `Calendar` abstraction backs all use cases (guard, ad-hoc, formatting),
 - **Storage: SQLite** (start here). ✓ Decided.
   - Free, zero-setup (single file, built into Python), fully relational (FKs/constraints this design relies on), and right-sized for a single branch.
   - Migration path: schema moves to **PostgreSQL** with minimal change if we outgrow it (free hosted options: Supabase, Neon).
+- **DB layer: SQLAlchemy (ORM).** ✓ Decided — entity tables (§3–§7) become Python model classes; handles relationships, foreign keys, and constraints cleanly. Swapping SQLite→Postgres later is a connection-string change.
 - **Runtime:** a Python process running the LangChain agent loop (message in → agent picks a tool → tool runs against the constraint engine + SQLite → response out). Nothing exotic required.
 - **API surface: chat-only.** ✓ Decided — no REST/CLI for now; all interaction is through the chat agent.
 - **Deployment target: local.** ✓ Decided — runs on a local machine for now.
 
 ---
 
-*All open questions are resolved and the stack is confirmed (Python + LangChain + SQLite, local, chat-only). Next step: lock the data schema from the entity tables above and build pillar by pillar.*
+## 12. Data Generation & Persistence
+
+### Persistence model
+The **SQLite database (`naatomatic.db`) is the single source of truth** — there is no in-memory "world" object threaded through tools. Flow for any mutating action:
+
+1. A tool runs (e.g., `assign_shift`).
+2. The **Validator** checks the relevant hard constraints (HC-*).
+3. On pass, the tool calls the **repository layer**, which applies the change inside a **transaction** and commits.
+4. Subsequent queries read the committed state directly — no copying, no state-swapping.
+
+This replaces the reference framework's deep-copy-and-swap world dict: saving is automatic and transactional, scoped to each successful tool call.
+
+### Schema
+SQLAlchemy model classes mirror the entity tables in §3–§7. The schema is created from these models (`create_all` for dev; Alembic migrations if/when needed). `naatomatic.db` is **git-ignored** — only code and seed definitions are committed, never the database file.
+
+### Seeding (data generation)
+A standalone **`seed.py`** script populates a fresh database: create schema → insert curated records → commit. Run once to spin up a working DB.
+
+- **Curated fixtures** (decided): a small, hand-authored, *known* dataset for development, demos, and deterministic tests — e.g., a handful of named personnel across Keva/Sadir and ranks, a few switches/ports, sample equipment, and some shifts. This is the equivalent of the reference framework's `DEFAULT_WORLD`, but expressed as SQLAlchemy rows.
+- The reserved **Default Holder** (`personal_number = 1234567`, the equipment depot — §5) is always seeded.
+- Faker-based bulk generation is **deferred** — add later only if we need volume/stress data.
+
+### Test isolation
+Each test run uses a fresh **in-memory SQLite (`:memory:`)** database seeded from the same fixtures (or a transaction rolled back at teardown). Fully isolated, fast, no leftover state — a cleaner equivalent of the reference framework's per-run deep copy.
+
+---
+
+*All open questions are resolved and the stack is confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Next step: lock the data schema from the entity tables above and build pillar by pillar.*
