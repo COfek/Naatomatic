@@ -102,7 +102,7 @@ Shared entities used across pillars.
 | `roles` | list of enum | see Roles & Permissions (§9). Empty = plain branch member. |
 | `can_do_week_long` | bool | Eligible for WEEK_LONG shifts. Default `true`. |
 | `can_do_single_day` | bool | Eligible for SINGLE_DAY shifts (day or night). Default `true`. |
-| `can_do_ticket_shift` | bool | Eligible for TICKET shifts (**Sadir only**). Default **`false`** — new members must complete a course first; a manager then sets it true. |
+| `can_do_support` | bool | Eligible for SUPPORT shifts (**Sadir only**). Default **`false`** — new members must complete a course first; a manager then sets it true. |
 | `can_do_adhoc` | bool | Eligible for ad-hoc missions. Default `true`. |
 | `active` | bool | Soft-disable for personnel who left |
 | `created_at` / `updated_at` | timestamp | |
@@ -297,10 +297,13 @@ Two distinct scheduling models sharing the **Justice Table**.
 ### Shared entities
 
 **Shift**
+
+> **Duty types:** `WEEK_LONG` and `SINGLE_DAY` are guard shifts. `SUPPORT` is the round-the-clock **customer-support standby** duty — a person on call to handle customers' support tickets. ⚠️ **Naming:** a SUPPORT shift is unrelated to the internal **Ticket** entity (§3), which is a branch-internal request about network/logistics/shifts. Different concepts — don't conflate.
+
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | UUID | |
-| `type` | enum | `WEEK_LONG` \| `SINGLE_DAY` \| `TICKET` (Sadir-only) — drives quota counting / burden |
+| `type` | enum | `WEEK_LONG` \| `SINGLE_DAY` \| `SUPPORT` (Sadir-only) — drives quota counting / burden |
 | `time_of_day` | enum (nullable) | `DAY` \| `NIGHT` — informational only, for `SINGLE_DAY` shifts; does **not** affect quotas (1 day = 1 night) |
 | `start_date` / `end_date` | date | |
 | `eligible_population` | enum (nullable) | `KEVA` \| `SADIR`; null = either |
@@ -308,7 +311,7 @@ Two distinct scheduling models sharing the **Justice Table**.
 | `assigned_to` | FK → Personnel (nullable) | |
 | `status` | enum | `OPEN` \| `ASSIGNED` \| `COMPLETED` \| `CANCELLED` |
 
-**Shift eligibility:** a person is eligible only if they (1) match every non-null targeting field (population, rank — HC-GD-0), (2) have the duty-type flag for this shift's `type` set true (HC-GD-6 — e.g., TICKET requires `can_do_ticket_shift`), and (3) are not date-blocked on the shift's dates (HC-GD-5). The balancing/quota logic then operates within that eligible pool.
+**Shift eligibility:** a person is eligible only if they (1) match every non-null targeting field (population, rank — HC-GD-0), (2) have the duty-type flag for this shift's `type` set true (HC-GD-6 — e.g., SUPPORT requires `can_do_support`), and (3) are not date-blocked on the shift's dates (HC-GD-5). The balancing/quota logic then operates within that eligible pool.
 
 **JusticeTable** — derived/maintained tally per person:
 | Field | Type | Notes |
@@ -326,7 +329,7 @@ Two distinct scheduling models sharing the **Justice Table**.
 |------------|--------|
 | WEEK_LONG guard shift | 7 (1 per day) |
 | SINGLE_DAY guard shift | 1 |
-| TICKET shift | 1 |
+| SUPPORT shift | 1 |
 | AdHoc mission | **0.5 × number of days** (no overnight stay — half weight) |
 
 All assignment types accumulate into the same `total_burden_points`, so balancing sees a soldier's *complete* load, not just guard duty.
@@ -334,14 +337,14 @@ All assignment types accumulate into the same `total_burden_points`, so balancin
 ### Shared hard constraints (eligibility — apply to Keva, Sadir, and ad-hoc)
 - **HC-GD-0 — Population/rank match.** An assignment may only go to a person matching its `eligible_population` and `required_rank` (when set).
 - **HC-GD-5 — Availability.** A person must not be assigned to an assignment whose dates overlap any of their `PersonnelDateBlock` records.
-- **HC-GD-6 — Duty-type eligibility.** A person must have the matching duty-type flag set true: `can_do_week_long` for WEEK_LONG shifts, `can_do_single_day` for SINGLE_DAY shifts, `can_do_ticket_shift` for TICKET shifts, `can_do_adhoc` for ad-hoc missions. (TICKET shifts are **Sadir-only**, and `can_do_ticket_shift` is false until a member completes the required course.)
+- **HC-GD-6 — Duty-type eligibility.** A person must have the matching duty-type flag set true: `can_do_week_long` for WEEK_LONG shifts, `can_do_single_day` for SINGLE_DAY shifts, `can_do_support` for SUPPORT shifts, `can_do_adhoc` for ad-hoc missions. (SUPPORT shifts are **Sadir-only**, and `can_do_support` is false until a member completes the required course.)
 
 ### A. Keva (career) — annual quotas with carry-over
 Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
 - **HC-GD-1 — 2 `WEEK_LONG` shifts per year.**
 - **HC-GD-2 — 4 `SINGLE_DAY` shifts per year** (day and night count the same — 1 day = 1 night).
 - The two quotas are tracked **independently** (single-day shifts do not offset the week-long requirement, or vice-versa).
-- TICKET shifts do not apply to Keva at all — they are **Sadir-only** (see §6.B).
+- SUPPORT shifts do not apply to Keva at all — they are **Sadir-only** (see §6.B).
 
 - **HC-GD-3 — Don't over-assign under normal operation.** The agent will not voluntarily assign a Keva member beyond their *effective* annual requirement for a shift type. Ad-hoc missions do **not** let a Keva member skip these guard quotas — the 2/4 still stand.
 
