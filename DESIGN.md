@@ -1,12 +1,14 @@
-# CombatAI — System Design
+# Naatomatic — System Design
 
 > **Status:** Draft for review. Nothing here is final — open questions are marked **❓OPEN** and assumptions are marked **⚠️ASSUMPTION**. Please annotate inline.
+>
+> **Naming:** **Naatomatic** is the project/system name. **CombatAI** is the branch being managed — the domain "world" entity (the root state object, parallel to a `BusinessWorld`).
 
 ---
 
 ## 1. Overview
 
-CombatAI is an autonomous, AI-agent-based system for managing and optimizing daily operations within a branch. It spans three operational pillars and enforces base/branch regulations as hard constraints, while giving personnel transparency into their open tickets and the fair distribution of operational burden.
+Naatomatic is an autonomous, AI-agent-based system for managing and optimizing daily operations within the **CombatAI** branch. It spans three operational pillars and enforces base/branch regulations as hard constraints, while giving personnel transparency into their open tickets and the fair distribution of operational burden.
 
 ### Pillars
 1. **Network Infrastructure** — physical/logical network state, port allocation, IT tickets.
@@ -59,7 +61,7 @@ We build on a standard agentic-node taxonomy, adopting only the nodes our flows 
 
 **Core nodes (every pillar):**
 
-| Node | Type | Role in CombatAI |
+| Node | Type | Role in Naatomatic |
 |------|------|------------------|
 | **Router** | LLM | The orchestrator entry point. Classifies intent → routes to the correct pillar, exposing only that pillar's tools and the user's role-permitted actions. |
 | **Worker** | LLM | The ReAct reasoning step: interprets the request and decides which tool to call next (or that it's done). |
@@ -383,7 +385,7 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 
 ## 8. Calendars
 
-Calendars are **queryable, time-based data** — not visual UI views. Since CombatAI is a chat-based system, a "calendar" is simply a set of dated events the agent can filter and report on however a request is scoped. They serve two purposes: **conflict detection** (a slot can't be double-booked) and **transparency** (the agent can answer "who/what is scheduled when").
+Calendars are **queryable, time-based data** — not visual UI views. Since Naatomatic is a chat-based system, a "calendar" is simply a set of dated events the agent can filter and report on however a request is scoped. They serve two purposes: **conflict detection** (a slot can't be double-booked) and **transparency** (the agent can answer "who/what is scheduled when").
 
 **Querying is flexible by scope.** The same underlying data can be filtered by population (Keva only, Sadir only, or both together), by rank, by date range, or by subject — driven entirely by what the user asks. There are no fixed "separate vs combined" views to pre-define.
 
