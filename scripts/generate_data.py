@@ -101,15 +101,18 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
 
     real_people = people  # everyone except depot
 
-    # --- Date blocks for ~20% of people ---
+    # --- Date blocks for ~20% of people (tracked so we never assign over them) ---
+    date_blocks: dict[int, list[tuple[date, date]]] = {p.id: [] for p in real_people}
     for p in real_people:
         if random.random() < 0.2:
             start = rand_date_in_year(fake)
+            end = start + timedelta(days=random.randint(1, 5))
+            date_blocks[p.id].append((start, end))
             session.add(
                 m.PersonnelDateBlock(
                     personnel_id=p.id,
                     start_date=start,
-                    end_date=start + timedelta(days=random.randint(1, 5)),
+                    end_date=end,
                     reason=random.choice(["trip", "appointment", "family event", "course"]),
                 )
             )
@@ -282,6 +285,9 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.add(row)
     session.flush()
 
+    def is_blocked(person_id: int, start: date, end: date) -> bool:
+        return any(bs <= end and start <= be for bs, be in date_blocks[person_id])
+
     def eligible_for(shift_type: ShiftType, population, rank, start, end) -> m.Personnel | None:
         pool = []
         for p in real_people:
@@ -291,11 +297,21 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
                 continue
             if rank is not None and p.rank != rank:
                 continue
+            # HC-GD-6: duty-type flags
             if shift_type == ShiftType.WEEK_LONG and not p.can_do_week_long:
                 continue
             if shift_type == ShiftType.SINGLE_DAY and not p.can_do_single_day:
                 continue
             if shift_type == ShiftType.SUPPORT and not (p.population == Population.SADIR and p.can_do_support):
+                continue
+            # HC-GD-3: Keva annual quota
+            if p.population == Population.KEVA:
+                if shift_type == ShiftType.WEEK_LONG and jt[p.id].week_long_count >= 2:
+                    continue
+                if shift_type == ShiftType.SINGLE_DAY and jt[p.id].single_day_count >= 4:
+                    continue
+            # HC-GD-5: not date-blocked over the shift dates
+            if is_blocked(p.id, start, end):
                 continue
             pool.append(p)
         if not pool:
@@ -359,7 +375,10 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         days = random.randint(1, 3)
         start = rand_date_in_year(fake)
         end = start + timedelta(days=days - 1)
-        pool = [p for p in real_people if p.active and p.can_do_adhoc]
+        pool = [
+            p for p in real_people
+            if p.active and p.can_do_adhoc and not is_blocked(p.id, start, end)
+        ]
         holder = min(pool, key=lambda x: jt[x.id].total_burden_points) if pool else None
         mission = m.AdHocMission(
             title=random.choice(["Memorial ceremony", "Volunteering day", "Branch ceremony"]),
