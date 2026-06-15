@@ -100,38 +100,24 @@ Shared entities used across pillars.
 | `population` | enum | `KEVA` \| `SADIR` |
 | `rank` | enum | see Rank enum — used for guard-duty eligibility |
 | `roles` | list of enum | see Roles & Permissions (§9). Empty = plain branch member. |
+| `can_do_week_long` | bool | Eligible for WEEK_LONG shifts. Default `true`. |
+| `can_do_single_day` | bool | Eligible for SINGLE_DAY shifts (day or night). Default `true`. |
+| `can_do_adhoc` | bool | Eligible for ad-hoc missions. Default `true`. |
 | `active` | bool | Soft-disable for personnel who left |
 | `created_at` / `updated_at` | timestamp | |
 
-A person's scheduling restrictions are **not** scalar fields here — they are one-to-many records (see PersonnelRestriction below), because a person can have several, each with its own dates or attributes.
+**Duty-type eligibility** is just three booleans, one per duty type. We don't model *why* a person can't do a duty (no medical reasons stored) — only the yes/no per type. Each duty type has its own real-world requirements; whether a person meets them is captured as a single flag set by a manager.
 
-### PersonnelRestriction
-Captures both kinds of "this person can't do X": **date-based unavailability** and **attribute-based medical limitations**. One unified table.
+### PersonnelDateBlock
+Date-based unavailability — a person can't serve on specific dates (trip, appointment, etc.). One-to-many (a person can have several), separate from the duty-type booleans above.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | UUID | |
 | `personnel_id` | FK → Personnel | |
-| `kind` | enum | `DATE_BLOCK` (unavailable on dates — trip, appointment) \| `MEDICAL` (a standing medical limitation) |
-| `restricted_attribute` | enum (nullable) | a DutyAttribute the person cannot do (e.g., `NIGHT`, `WEEK_LONG`, `CERAMIC_VEST`, `DUST_EXPOSURE`). **null = blocks all duty** (used with a date range). |
-| `start_date` | date (nullable) | null = no start bound (standing) |
-| `end_date` | date (nullable) | null = open-ended / permanent |
-| `reason` | string | free-text note (e.g., "back problems", "trip") |
-
-**How the two cases map:**
-- *"Unavailable June 20–22"* → `kind=DATE_BLOCK`, `restricted_attribute=null`, `start/end` set.
-- *"Can never do night shifts"* (sleeping disorder) → `kind=MEDICAL`, `restricted_attribute=NIGHT`, no dates.
-- *"Can't do week-long shifts"* (dust allergy) → `kind=MEDICAL`, `restricted_attribute=WEEK_LONG`.
-- *"Can't wear a ceramic vest"* (back problems) → `kind=MEDICAL`, `restricted_attribute=CERAMIC_VEST` (only blocks shifts tagged with that attribute).
-- A *temporary* medical exemption → `kind=MEDICAL` with `start/end` dates.
-
-### DutyAttribute (shared, extensible reference)
-A characteristic an assignment can involve. Stored as a lookup table so new attributes are added as **data, not code**. Starter set:
-```
-NIGHT | WEEK_LONG | CERAMIC_VEST | DUST_EXPOSURE | PHYSICAL_EXERTION
-```
-- `NIGHT` and `WEEK_LONG` are **auto-derived** from a shift's `time_of_day` / `type` — no manual tagging.
-- Physical attributes (`CERAMIC_VEST`, `DUST_EXPOSURE`, …) are **tagged explicitly** on the shift/mission that involves them.
+| `start_date` | date | |
+| `end_date` | date | |
+| `reason` | string | free-text note (e.g., "trip", "appointment") |
 
 ### Rank (shared enum)
 Used for guard-duty eligibility (some shifts are restricted to a specific rank).
@@ -318,11 +304,10 @@ Two distinct scheduling models sharing the **Justice Table**.
 | `start_date` / `end_date` | date | |
 | `eligible_population` | enum (nullable) | `KEVA` \| `SADIR`; null = either |
 | `required_rank` | enum (nullable) | Rank; null = any rank |
-| `attributes` | list of DutyAttribute | Characteristics this shift involves. `NIGHT`/`WEEK_LONG` auto-derived from `time_of_day`/`type`; physical ones (e.g. `CERAMIC_VEST`) tagged explicitly. Checked against personnel medical restrictions (HC-GD-6). |
 | `assigned_to` | FK → Personnel (nullable) | |
 | `status` | enum | `OPEN` \| `ASSIGNED` \| `COMPLETED` \| `CANCELLED` |
 
-**Shift eligibility:** a person is eligible only if they (1) match every non-null targeting field (population, rank — HC-GD-0), (2) are available on the dates (HC-GD-5), and (3) have no medical restriction overlapping the shift's attributes (HC-GD-6). The balancing/quota logic then operates within that eligible pool.
+**Shift eligibility:** a person is eligible only if they (1) match every non-null targeting field (population, rank — HC-GD-0), (2) have the duty-type flag for this shift's `type` set true (HC-GD-6), and (3) are not date-blocked on the shift's dates (HC-GD-5). The balancing/quota logic then operates within that eligible pool.
 
 **JusticeTable** — derived/maintained tally per person:
 | Field | Type | Notes |
@@ -346,8 +331,8 @@ All assignment types accumulate into the same `total_burden_points`, so balancin
 
 ### Shared hard constraints (eligibility — apply to Keva, Sadir, and ad-hoc)
 - **HC-GD-0 — Population/rank match.** An assignment may only go to a person matching its `eligible_population` and `required_rank` (when set).
-- **HC-GD-5 — Availability.** A person must not be assigned to an assignment whose dates overlap an active `PersonnelRestriction` of `kind=DATE_BLOCK` (or a `MEDICAL` restriction with a date range that blocks all duty).
-- **HC-GD-6 — Medical attribute fit.** A person must not be assigned to an assignment whose `attributes` include any DutyAttribute the person is restricted from (an active `MEDICAL` `PersonnelRestriction`). Covers "no night shifts," "no week-long," "no ceramic vest," "dust allergy," etc.
+- **HC-GD-5 — Availability.** A person must not be assigned to an assignment whose dates overlap any of their `PersonnelDateBlock` records.
+- **HC-GD-6 — Duty-type eligibility.** A person must have the matching duty-type flag set true: `can_do_week_long` for WEEK_LONG shifts, `can_do_single_day` for SINGLE_DAY shifts, `can_do_adhoc` for ad-hoc missions.
 
 ### A. Keva (career) — annual quotas with carry-over
 Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
@@ -396,7 +381,6 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 | `days` | int | mission length in days; default 1, but any length allowed (e.g., 3) |
 | `eligible_population` | enum (nullable) | `KEVA` \| `SADIR`; null = either |
 | `required_rank` | enum (nullable) | Rank; null = any |
-| `attributes` | list of DutyAttribute | Characteristics this mission involves; checked against personnel medical restrictions (HC-GD-6). |
 | `assigned_to` | FK → Personnel (nullable) | |
 | `status` | enum | `OPEN` \| `ASSIGNED` \| `COMPLETED` \| `CANCELLED` |
 
@@ -410,7 +394,7 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 - `mark_adhoc_completed(mission)`.
 
 ### Constraints
-- **HC-GD-0, HC-GD-5, HC-GD-6 (Eligibility)** apply — population/rank match, date availability, and medical-attribute fit, same as shifts.
+- **HC-GD-0, HC-GD-5, HC-GD-6 (Eligibility)** apply — population/rank match, date availability, and the `can_do_adhoc` flag, same pattern as shifts.
 - **SC-GD-1/2 (Balancing + tie-break)** apply — ad-hoc assignment prefers the lowest-`total_burden_points` eligible soldier.
 
 ❓OPEN — Do ad-hoc missions apply to **Keva** as well as Sadir? If assigned to Keva, do they count toward any Keva quota, or sit entirely outside the quota system (burden-tracked only)? (Recommendation: assignable to both; for Keva, burden-tracked but *not* part of the 2/4 guard quotas.)
