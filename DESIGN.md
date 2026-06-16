@@ -324,8 +324,8 @@ Two distinct scheduling models sharing the **Justice Table**.
 | `personnel_id` | FK | |
 | `week_long_count` | int | Keva: WEEK_LONG shifts done this calendar year |
 | `single_day_count` | int | Keva: SINGLE_DAY shifts done this calendar year |
-| `week_long_carryover` | int | Keva: surplus WEEK_LONG shifts carried from prior year (reduces this year's requirement). See HC-GD-4. |
-| `single_day_carryover` | int | Keva: surplus SINGLE_DAY shifts carried from prior year |
+| `week_long_carryover` | int (signed) | Keva: WEEK_LONG carryover from prior year. **Positive** = surplus (did extra) → reduces this year's requirement; **negative** = shortfall (did fewer) → increases it. See HC-GD-4. |
+| `single_day_carryover` | int (signed) | Keva: SINGLE_DAY carryover, same signed convention |
 | `total_burden_points` | decimal | Balancing currency (Sadir always; Keva for ad-hoc tie-breaks) — see **Burden Points** scale below |
 | `period_start` | date | quota window anchor (Jan 1 of the calendar year) |
 
@@ -354,10 +354,14 @@ Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
 
 - **HC-GD-3 — Don't over-assign under normal operation.** The agent will not voluntarily assign a Keva member beyond their *effective* annual requirement for a shift type. Ad-hoc missions do **not** let a Keva member skip these guard quotas — the 2/4 still stand.
 
-- **HC-GD-4 — Forced overflow carries to next year.** In an extreme/operationally-forced situation a Keva member may have to exceed 2 week-long or 4 single-day shifts in a year. When this happens:
-  - The surplus is recorded in `week_long_carryover` / `single_day_carryover`.
-  - **Effective requirement next year = base quota − carryover.** Example: a member forced to do 3 week-long shifts this year carries `+1`, so next year they owe only **1** week-long shift.
-  - The Justice Table accounts for this when choosing who serves next: a member who over-served last year is **lower priority** for new assignments until the carry-over is worked off. This keeps the burden fair across year boundaries rather than resetting and forgetting the overflow.
+- **HC-GD-4 — Carryover (bidirectional).** At year end, the difference between what a Keva member did and their quota carries into next year, so the burden stays fair across year boundaries.
+  - `carryover = done − quota` (per shift type), stored in `week_long_carryover` / `single_day_carryover`.
+  - **Effective requirement next year = base quota − carryover.**
+  - *Over-served:* did 3 week-long (quota 2) → carryover `+1` → next year owe **1**.
+  - *Under-served:* did 1 week-long (quota 2) → carryover `−1` → next year owe **3** (the missed one rolls forward — "do one extra"). (This replaces the earlier "waive" decision.)
+  - The Justice Table uses this when choosing who serves: someone who over-served is lower priority; someone who under-served is higher priority until they catch up.
+
+> **Impossible-debt guard (recommended).** A shortfall should only roll forward if the member was *able* to serve. If their duty flag is off (e.g. `can_do_week_long = false`) the quota doesn't apply to them at all, so **no shortfall accrues** — otherwise a permanently-restricted member would owe an ever-growing, unpayable debt. Confirm this guard (see R2-4).
 
 **Ad-hoc for Keva:** Keva members *usually* don't get ad-hoc missions, but occasionally do. When they do, the ad-hoc burden (in `total_burden_points`) is used **only as a tie-breaker** to balance ad-hoc fairness *among Keva* — it never substitutes for or reduces the 2/4 guard quotas.
 
@@ -560,9 +564,9 @@ A structured review (design holes, code correctness, design↔code consistency, 
 - **R2-1 — Time/scheduler actor [HIGH]. ✓ RESOLVED.** The system is chat-only/local with no background clock, so time-driven transitions are handled by an **idempotent daily maintenance routine** (see §14): formatting completion, shift/mission completion, and the Keva year reset. Formatting status is derived from the slot's `end_date` and flipped by maintenance. (The carryover/year-reset specifics still depend on R2-4/R2-6.)
 - **R2-2 — Assignee double-booking [HIGH]. ✓ RESOLVED.** Added **HC-GD-7 (no overlapping assignments per person)** to §6 — enforced in `rules/constraints.py`, checked by `verify.py`, and respected by the generator.
 - **R2-3 — SUPPORT continuous coverage [MED]. ✓ RESOLVED.** One SUPPORT person per day, every day (24/7). Weekdays = one-day shifts; the **weekend (Fri+Sat) is one 2-day shift** for a single person, counting **double** (2 burden points). See §6 SUPPORT coverage note and the Burden Points table. Gap-free coverage is the scheduler's job; HC-GD-7 prevents overlaps.
-- **R2-4 — Keva quota unreachable [MED]. ✓ RESOLVED — waive.** If a Keva member did **fewer** than their quota in a year, the shortfall is **forgiven**: the new year starts fresh at the full 2/4. No under-served debt accrues (avoids an impossible permanent-restriction debt). The over-served direction is unchanged — HC-GD-4 carryover still **reduces** next year's requirement when someone was forced to do extra. So carryover is **one-directional**: surplus rolls forward, shortfall does not.
+- **R2-4 — Keva under-served [MED]. ✓ RESOLVED — defer.** If a Keva member did **fewer** than their quota, the shortfall **rolls forward**: next year they owe the difference on top of the base (did 1 of 2 week-long → owe 3 next year). Carryover is therefore **bidirectional** (surplus reduces, shortfall increases) — see HC-GD-4. **Open guard:** to avoid an unpayable debt for a permanently-restricted member, a shortfall should only accrue if the member's duty flag was on (if `can_do_*` is false the quota doesn't apply, so nothing accrues) — please confirm.
 - **R2-5 — HC-GD-1/2 semantics [MED].** "Exactly 2 week-long / 4 single-day per year" are **end-of-year targets**, not per-snapshot invariants, so they can't be validated on a mid-year database. Clarify they're enforced by the **scheduler's planning**, not by `verify.py`. Separately, the cap side **HC-GD-3** currently ignores carryover, the calendar-year window, and shift status — tighten once R2-1/R2-6 are decided.
-- **R2-6 — HC-GD-4 carryover unimplemented [MED]. Policy decided, build pending.** The rule is now fully specified (surplus rolls forward and reduces next year; shortfall is waived — see R2-4). Still to build: the year-reset code in `scripts/maintenance.py` that, at the calendar-year boundary, sets `*_carryover = max(0, count − quota)`, resets the counts, and re-anchors `period_start`.
+- **R2-6 — HC-GD-4 carryover unimplemented [MED]. Policy decided, build pending.** The rule is now fully specified (bidirectional — see R2-4/HC-GD-4). Still to build: the year-reset code in `scripts/maintenance.py` that, at the calendar-year boundary, sets `*_carryover = done − quota` (signed; subject to the impossible-debt guard), resets the counts, and re-anchors `period_start`.
 - **R2-7 — Ticket↔fulfillment linkage [MED].** Equipment-request tickets don't link to the actual item signed out; network-request tickets don't specify which port/wall-jack mapping is written on resolve. Also: `RESOLVED` is terminal — define the **reopen** path if an issue recurs.
 - **R2-8 — Computer status transition guards [LOW].** The §5 lifecycle is documented but not enforced as a state machine (e.g., is READY_TO_USE→BROKEN legal directly?). Decide whether to guard transitions.
 - **R2-9 — Audit log & equipment transfers [LOW].** `AuditLog` and `EquipmentTransfer` are first-class in the design but nothing writes them yet. Wire them into the repository layer (every mutation → audit row; every sign/return → transfer row) when that layer is built.
@@ -580,7 +584,7 @@ The system is chat-only and local — there is **no background clock**. Anything
 |------|--------|
 | **Formatting completion** | Each computer whose Formatting-Calendar slot `end_date` has passed and is still `FORMATTING` → `READY_FOR_PICKUP` (custody stays with the depot; `reserved_for` unchanged). |
 | **Shift / mission completion** | Each `Shift` / `AdHocMission` with `end_date` in the past and status `ASSIGNED` → `COMPLETED`. (Nothing flips these otherwise.) |
-| **Keva year reset** | On a new calendar year, for each Keva member: set `week_long_carryover = max(0, week_long_count − 2)` and `single_day_carryover = max(0, single_day_count − 4)` (surplus rolls forward, **reducing** next year's requirement), reset the counts to 0, and re-anchor `period_start` to Jan 1. A **shortfall is waived** (no negative carryover) — see R2-4. |
+| **Keva year reset** | On a new calendar year, for each Keva member: set `week_long_carryover = week_long_count − 2` and `single_day_carryover = single_day_count − 4` (**signed** — positive = surplus reduces next year, negative = shortfall increases it), reset the counts to 0, and re-anchor `period_start` to Jan 1. Subject to the impossible-debt guard (no shortfall accrues when the duty flag is off) — see HC-GD-4 / R2-4. |
 
 **Trigger (decided):** run the routine **on app startup, guarded to once per day** (compare a stored "last maintenance date" to today). No external scheduler required for the local deployment. Optionally, Windows Task Scheduler can also run `scripts/maintenance.py` daily — but the startup guard makes the system self-sufficient.
 
@@ -588,4 +592,4 @@ The system is chat-only and local — there is **no background clock**. Anything
 
 ---
 
-*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved this round: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (waive under-served), R2-6 (carryover policy — build pending). The daily maintenance routine (§14) is now fully specified and pending build. Remaining open items: R2-7 (ticket↔fulfillment linkage), R2-8 (status transition guards), R2-9 (audit/transfer writes). The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*
+*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved this round: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (defer under-served — bidirectional carryover), R2-6 (carryover policy — build pending). The daily maintenance routine (§14) is now fully specified and pending build. Remaining open items: R2-7 (ticket↔fulfillment linkage), R2-8 (status transition guards), R2-9 (audit/transfer writes). The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*
