@@ -250,29 +250,46 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 > **Why `reserved_for` is separate from `signed_to`.** When a computer is sent to formatting on behalf of a specific person, custody passes to the depot (`signed_to = 1234567`) but the machine is still earmarked for that person (`reserved_for = them`). On pickup it is signed back to `reserved_for` and the reservation is cleared. Keeping the two facts separate means "who holds it now" and "who it's coming back to" never overwrite each other. `reserved_for` is null for items not earmarked for anyone (e.g. a broken item with no pending owner).
 
 **Status by kind:**
-- **Monitor:** `FUNCTIONAL` \| `BROKEN`
+- **Monitor:** `FUNCTIONAL` \| `BROKEN` \| `DECOMMISSIONED`
 - **Computer:** richer lifecycle (below) — plus a `classification`.
 
 **Computer status lifecycle**
 | Status | Meaning |
 |--------|---------|
-| `FORMATTING` | Sent to formatting. Occupies a **2-week slot** on the Formatting Calendar starting from the send date. |
-| `READY_FOR_PICKUP` | The 2-week formatting window has elapsed; the machine is done and awaiting collection. |
+| `FORMATTING` | Sent to formatting (routine re-image **or** a repair attempt). Occupies a **2-week slot** on the Formatting Calendar from the send date. |
+| `READY_FOR_PICKUP` | The formatting window elapsed successfully; the machine is done and awaiting collection. |
 | `READY_TO_USE` | Picked up and back in inventory (מלאי), available to be signed out / used. |
 | `IN_USE` | Currently signed to and used by a personnel member. |
-| `BROKEN` | Malfunctioning / out of service. |
+| `BROKEN` | Malfunctioning, still in the branch (awaiting a fix attempt). |
+| `DECOMMISSIONED` | **Out of service and removed from the branch** — IT could not fix it. **Terminal.** Held by nobody (`signed_to`/`reserved_for` cleared). The row is kept for history; it is no longer part of inventory. |
 
 ```
-              sent to format          +2 weeks            picked up
-   (any) ───────────────────► FORMATTING ──────► READY_FOR_PICKUP ──────► READY_TO_USE
-                                                                              │   ▲
-                                                                    signed out │   │ returned
-                                                                              ▼   │
-                                                                            IN_USE
-   BROKEN  ◄── (from any status, on malfunction)
+              sent to format        +2 weeks (success)        picked up
+   ─────────────────────────► FORMATTING ──────► READY_FOR_PICKUP ──────► READY_TO_USE
+                                  │                                            │   ▲
+                    IT can't fix  │                                  signed out │   │ returned
+                                  ▼                                            ▼   │
+   BROKEN ◄── (in use, breaks) ── IN_USE ◄─────────────────────────────────────┘
+     │                                  
+     │ sent to fix → FORMATTING ─(IT can't fix)─► DECOMMISSIONED  (terminal: removed from branch)
+     └────────────────────────────────────────►  DECOMMISSIONED
 ```
 
-⚠️ASSUMPTION — `READY_TO_USE` is the "available in inventory" state and `IN_USE` is the "signed to someone" state. The `signed_to` field is set when a computer moves to `IN_USE` and cleared on return. A `BROKEN` computer can be sent to `FORMATTING` for repair/re-image.
+⚠️ASSUMPTION — `READY_TO_USE` = available in inventory; `IN_USE` = signed to someone. `signed_to` is set on `IN_USE` and cleared on return.
+
+**Computer state machine (decided — resolves R2-8).** Only these transitions are legal; a tool that changes status must reject anything else:
+| From | Allowed to |
+|------|-----------|
+| `READY_TO_USE` | `IN_USE` (sign out), `FORMATTING` (routine re-image), `BROKEN` |
+| `IN_USE` | `READY_TO_USE` (return), `BROKEN` (breaks in use) |
+| `BROKEN` | `FORMATTING` (attempt repair), `DECOMMISSIONED` (unfixable) |
+| `FORMATTING` | `READY_FOR_PICKUP` (success, via daily maintenance), `DECOMMISSIONED` (IT can't fix) |
+| `READY_FOR_PICKUP` | `READY_TO_USE` (returned to inventory), `IN_USE` (handed directly to `reserved_for`) |
+| `DECOMMISSIONED` | — (terminal) |
+
+(Monitors: `FUNCTIONAL` ⇄ `BROKEN`; `BROKEN` → `DECOMMISSIONED`.)
+
+**Decommissioning & removal (documented).** When IT declares an item unfixable, a `decommission_item` tool sets status `DECOMMISSIONED`, clears `signed_to` and `reserved_for` (it has left the branch), and **records the removal**: an `EquipmentTransfer` (`to_personnel = null`, reason `"decommissioned — IT unable to repair"`) plus an `AuditLog` entry (who/when/why). Decommissioned items are excluded from inventory/stock queries but remain in the table for history.
 
 **Decided — status from the slot, flipped by daily maintenance.** A computer sent to formatting gets a **2-week slot** (event) on the Formatting Calendar at the send date. Whether it is still `FORMATTING` or now `READY_FOR_PICKUP` is determined by comparing **today** against the slot's `end_date`. Because the system is chat-only with no background clock, the actual status flip is performed by the **daily maintenance routine** (see §14), which is idempotent and also handles other time-driven transitions. Reads may also derive the status directly from the slot for within-day precision.
 
@@ -602,7 +619,7 @@ A structured review (design holes, code correctness, design↔code consistency, 
 - **R2-5 — HC-GD-1/2 semantics [MED].** "Exactly 2 week-long / 4 single-day per year" are **end-of-year targets**, not per-snapshot invariants, so they can't be validated on a mid-year database. Clarify they're enforced by the **scheduler's planning**, not by `verify.py`. Separately, the cap side **HC-GD-3** currently ignores carryover, the calendar-year window, and shift status — tighten once R2-1/R2-6 are decided.
 - **R2-6 — HC-GD-4 carryover unimplemented [MED]. Policy decided, build pending.** The rule is now fully specified (bidirectional — see R2-4/HC-GD-4). Still to build: the year-reset code in `scripts/maintenance.py` that, at the calendar-year boundary, sets `*_carryover = done − quota` (signed; subject to the impossible-debt guard), resets the counts, and re-anchors `period_start`.
 - **R2-7 — Ticket↔fulfillment linkage [MED]. ✓ RESOLVED.** Tickets now carry `resolved_item_catalog` / `resolved_port_id`, set by a chat-driven `resolve_ticket` tool (see §3 Ticket resolution flow) that validates, applies the fulfilment, unassigns the depot, closes the ticket, and records a transfer/audit row. Interface = the chat (manager role), not a separate app. *(Still minor/open: the reopen path — `RESOLVED` is terminal; if an issue recurs, open a new ticket for now.)*
-- **R2-8 — Computer status transition guards [LOW].** The §5 lifecycle is documented but not enforced as a state machine (e.g., is READY_TO_USE→BROKEN legal directly?). Decide whether to guard transitions.
+- **R2-8 — Computer status transition guards [LOW]. ✓ RESOLVED.** The legal-transition table is now defined in §5, including the new terminal **`DECOMMISSIONED`** state (out of service / removed from branch when IT can't fix it). Enforcement is a `set_equipment_status`/`decommission_item` tool guard (built with the Logistics tools); the integrity check already asserts decommissioned items hold no custody.
 - **R2-9 — Audit log & equipment transfers [LOW].** `AuditLog` and `EquipmentTransfer` are first-class in the design but nothing writes them yet. Wire them into the repository layer (every mutation → audit row; every sign/return → transfer row) when that layer is built.
 
 > Note: **SC-GD-1/2** (Sadir balancing + tie-break) are **soft** optimization rules, enforced at *assignment time* by the scheduler — they are correctly **not** in `verify.py` (which checks hard invariants only).
@@ -626,4 +643,4 @@ The system is chat-only and local — there is **no background clock**. Anything
 
 ---
 
-*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (defer under-served — bidirectional carryover), R2-6 (carryover policy), R2-7 (ticket resolution flow, chat-driven). The daily maintenance routine (§14) and the `resolve_ticket` flow (§3) are fully specified and pending build. Remaining open items: R2-8 (computer status transition guards) and R2-9 (audit/transfer writes — first use now specified in the resolution flow). Both are best handled while building the Logistics/Network tools. The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*
+*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (defer under-served — bidirectional carryover), R2-6 (carryover policy), R2-7 (ticket resolution flow, chat-driven). The daily maintenance routine (§14) and the `resolve_ticket` flow (§3) are fully specified and pending build. Remaining open item: R2-9 (audit/transfer writes — first uses now specified: ticket resolution and decommissioning), best handled while building the Logistics/Network tools. R2-8 (computer state machine incl. the terminal `DECOMMISSIONED` state) is now defined; only the tool-level transition guard remains to build. The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*

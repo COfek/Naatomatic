@@ -207,14 +207,16 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         roll = random.random()
         cat = next_catalog()
         reserved = None
-        if roll < 0.1:  # broken -> depot
+        if roll < 0.07:  # decommissioned -> removed from the branch (no custody)
+            status, signed = ComputerStatus.DECOMMISSIONED, None
+        elif roll < 0.15:  # broken -> depot
             status, signed = ComputerStatus.BROKEN, depot.id
-        elif roll < 0.2:  # formatting -> depot custody, reserved for the sender
+        elif roll < 0.25:  # formatting -> depot custody, reserved for the sender
             status, signed = ComputerStatus.FORMATTING, depot.id
             reserved = random.choice([p for p in real_people if p.active]).id
             sent = date.today() - timedelta(days=random.randint(0, FORMATTING_DURATION_DAYS - 1))
             formatting_items.append((cat, sent))
-        elif roll < 0.3:  # ready for pickup -> depot
+        elif roll < 0.33:  # ready for pickup -> depot
             status, signed = ComputerStatus.READY_FOR_PICKUP, depot.id
         elif roll < 0.55:  # ready to use (inventory) -> depot
             status, signed = ComputerStatus.READY_TO_USE, depot.id

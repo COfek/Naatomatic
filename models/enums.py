@@ -61,6 +61,7 @@ class EquipmentKind(str, enum.Enum):
 class MonitorStatus(str, enum.Enum):
     FUNCTIONAL = "FUNCTIONAL"
     BROKEN = "BROKEN"
+    DECOMMISSIONED = "DECOMMISSIONED"  # out of service, removed from the branch (terminal)
 
 
 class ComputerStatus(str, enum.Enum):
@@ -69,6 +70,7 @@ class ComputerStatus(str, enum.Enum):
     READY_TO_USE = "READY_TO_USE"
     IN_USE = "IN_USE"
     BROKEN = "BROKEN"
+    DECOMMISSIONED = "DECOMMISSIONED"  # IT couldn't fix it; removed from the branch (terminal)
 
 
 # --- Guard duty / scheduling ---

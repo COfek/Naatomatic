@@ -223,7 +223,11 @@ def check_hc_gd_3(session: Session) -> list[str]:
 # Equipment integrity
 # --------------------------------------------------------------------------- #
 def check_depot(session: Session) -> list[str]:
-    """DEPOT: broken/formatting items belong to the depot; in-use items do not."""
+    """DEPOT: custody is consistent with status.
+
+    broken/formatting -> held by the depot; in-use -> a real person;
+    decommissioned -> held by nobody (left the branch).
+    """
     depot = _depot_id(session)
     violations = []
     if depot is None:
@@ -237,6 +241,11 @@ def check_depot(session: Session) -> list[str]:
         if status == ComputerStatus.IN_USE.value:
             if item.signed_to is None or item.signed_to == depot:
                 violations.append(f"computer {item.catalog_number} is IN_USE but not signed to a real person")
+        if status == ComputerStatus.DECOMMISSIONED.value:  # also MonitorStatus.DECOMMISSIONED (same value)
+            if item.signed_to is not None or item.reserved_for is not None:
+                violations.append(
+                    f"item {item.catalog_number} is DECOMMISSIONED but still has custody/reservation"
+                )
     return violations
 
 
