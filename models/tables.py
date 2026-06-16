@@ -182,6 +182,9 @@ class EquipmentItem(Base):
         _enum(Classification), nullable=True
     )  # computers only
     signed_to: Mapped[int | None] = mapped_column(ForeignKey("personnel.id"), nullable=True)
+    # Who the item is promised to while it is at the depot (e.g. during formatting).
+    # signed_to = custody (often the depot); reserved_for = destination on return.
+    reserved_for: Mapped[int | None] = mapped_column(ForeignKey("personnel.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

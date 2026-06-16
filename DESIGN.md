@@ -228,8 +228,11 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 | `kind` | enum | `MONITOR` \| `COMPUTER` |
 | `status` | enum | depends on kind (below) |
 | `classification` | enum (nullable) | computers only |
-| `signed_to` | FK → Personnel (nullable) | current holder |
+| `signed_to` | FK → Personnel (nullable) | current **custody** (often the depot) |
+| `reserved_for` | FK → Personnel (nullable) | **destination** on return — who the item is promised to while it sits at the depot (e.g. during formatting). Distinct from `signed_to`. |
 | `created_at` / `updated_at` | timestamp | |
+
+> **Why `reserved_for` is separate from `signed_to`.** When a computer is sent to formatting on behalf of a specific person, custody passes to the depot (`signed_to = 1234567`) but the machine is still earmarked for that person (`reserved_for = them`). On pickup it is signed back to `reserved_for` and the reservation is cleared. Keeping the two facts separate means "who holds it now" and "who it's coming back to" never overwrite each other. `reserved_for` is null for items not earmarked for anyone (e.g. a broken item with no pending owner).
 
 **Status by kind:**
 - **Monitor:** `FUNCTIONAL` \| `BROKEN`
@@ -256,7 +259,7 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 
 ⚠️ASSUMPTION — `READY_TO_USE` is the "available in inventory" state and `IN_USE` is the "signed to someone" state. The `signed_to` field is set when a computer moves to `IN_USE` and cleared on return. A `BROKEN` computer can be sent to `FORMATTING` for repair/re-image.
 
-**Decided:** The system **auto-transitions** `FORMATTING → READY_FOR_PICKUP` once the slot's `end_date` passes — no manual confirmation needed.
+**Decided — status from the slot, flipped by daily maintenance.** A computer sent to formatting gets a **2-week slot** (event) on the Formatting Calendar at the send date. Whether it is still `FORMATTING` or now `READY_FOR_PICKUP` is determined by comparing **today** against the slot's `end_date`. Because the system is chat-only with no background clock, the actual status flip is performed by the **daily maintenance routine** (see §14), which is idempotent and also handles other time-driven transitions. Reads may also derive the status directly from the slot for within-day precision.
 
 **EquipmentTransfer** (audit of movement)
 | Field | Type | Notes |
@@ -338,6 +341,7 @@ All assignment types accumulate into the same `total_burden_points`, so balancin
 - **HC-GD-0 — Population/rank match.** An assignment may only go to a person matching its `eligible_population` and `required_rank` (when set).
 - **HC-GD-5 — Availability.** A person must not be assigned to an assignment whose dates overlap any of their `PersonnelDateBlock` records.
 - **HC-GD-6 — Duty-type eligibility.** A person must have the matching duty-type flag set true: `can_do_week_long` for WEEK_LONG shifts, `can_do_single_day` for SINGLE_DAY shifts, `can_do_support` for SUPPORT shifts, `can_do_adhoc` for ad-hoc missions. (SUPPORT shifts are **Sadir-only**, and `can_do_support` is false until a member completes the required course.)
+- **HC-GD-7 — No overlapping assignments.** A person may not be assigned to two assignments whose date ranges overlap — at most one shift/SUPPORT/ad-hoc at a time. Applies across all assignment types (a guard shift and an ad-hoc mission on the same day is a violation).
 
 ### A. Keva (career) — annual quotas with carry-over
 Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
@@ -551,8 +555,8 @@ Each test run uses a fresh **in-memory SQLite (`:memory:`)** database seeded fro
 
 A structured review (design holes, code correctness, design↔code consistency, test coverage) surfaced the following genuine gaps. These are **decisions still to make**, not yet reflected in the rules above. Severity in brackets.
 
-- **R2-1 — Time/scheduler actor [HIGH].** The system is chat-only and local, with **no background process**. Several "automatic, time-driven" behaviors therefore have no actor: (a) FORMATTING→READY_FOR_PICKUP after 14 days, (b) Keva quota reset at the calendar-year boundary, (c) keeping calendars fresh. *Recommendation:* make formatting status **compute-on-read** (derive from the formatting event's dates — same "derive don't store" rule we already use), and add an explicit **maintenance command** the agent/operator runs for year rollover. Decide per behavior.
-- **R2-2 — Assignee double-booking [HIGH].** No rule prevents one person being assigned to **two overlapping assignments** (guard+guard, guard+ad-hoc, support+guard). HC-GD-0/5/6 only check targeting, date-blocks, and flags — not collisions with the person's *other* assignments. *Recommendation:* add **HC-GD-7 (no overlapping assignments per person)** and enforce it in the scheduler and the generator.
+- **R2-1 — Time/scheduler actor [HIGH]. ✓ RESOLVED.** The system is chat-only/local with no background clock, so time-driven transitions are handled by an **idempotent daily maintenance routine** (see §14): formatting completion, shift/mission completion, and the Keva year reset. Formatting status is derived from the slot's `end_date` and flipped by maintenance. (The carryover/year-reset specifics still depend on R2-4/R2-6.)
+- **R2-2 — Assignee double-booking [HIGH]. ✓ RESOLVED.** Added **HC-GD-7 (no overlapping assignments per person)** to §6 — enforced in `rules/constraints.py`, checked by `verify.py`, and respected by the generator.
 - **R2-3 — SUPPORT continuous coverage [MED].** SUPPORT is "round-the-clock," but modeled as a single `Shift` row with one assignee. How is 24/7 coverage represented — one standby row per day, a rotation, handoffs? Define the granularity.
 - **R2-4 — Keva quota unreachable [MED].** If a Keva member's duty flags or date-blocks make the 2/4 quota unreachable in a year, is the quota **waived** or **deferred** (carryover in the under-served direction)? (Open since the carryover discussion; never resolved.)
 - **R2-5 — HC-GD-1/2 semantics [MED].** "Exactly 2 week-long / 4 single-day per year" are **end-of-year targets**, not per-snapshot invariants, so they can't be validated on a mid-year database. Clarify they're enforced by the **scheduler's planning**, not by `verify.py`. Separately, the cap side **HC-GD-3** currently ignores carryover, the calendar-year window, and shift status — tighten once R2-1/R2-6 are decided.
@@ -565,4 +569,21 @@ A structured review (design holes, code correctness, design↔code consistency, 
 
 ---
 
-*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). The §13 round-2 items are the next design decisions; the project structure template (see `PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*
+## 14. Time-Driven Maintenance
+
+The system is chat-only and local — there is **no background clock**. Anything that should change "as time passes" is handled by a single **idempotent maintenance routine** (planned: `scripts/maintenance.py`). Idempotent = safe to run any number of times; running it twice in a day changes nothing extra.
+
+**Daily tasks:**
+| Task | Action |
+|------|--------|
+| **Formatting completion** | Each computer whose Formatting-Calendar slot `end_date` has passed and is still `FORMATTING` → `READY_FOR_PICKUP` (custody stays with the depot; `reserved_for` unchanged). |
+| **Shift / mission completion** | Each `Shift` / `AdHocMission` with `end_date` in the past and status `ASSIGNED` → `COMPLETED`. (Nothing flips these otherwise.) |
+| **Keva year reset** | On a new calendar year, reset `week_long_count` / `single_day_count` and re-anchor `period_start`; apply carryover (pending R2-4/R2-6 decisions). |
+
+**Trigger (decided):** run the routine **on app startup, guarded to once per day** (compare a stored "last maintenance date" to today). No external scheduler required for the local deployment. Optionally, Windows Task Scheduler can also run `scripts/maintenance.py` daily — but the startup guard makes the system self-sufficient.
+
+> Why idempotent + guarded rather than a real scheduler: it keeps a local, chat-only app self-contained (no daemon to install or keep alive) while guaranteeing the time-driven transitions happen at least once per day, and never double-apply.
+
+---
+
+*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). HC-GD-7 and the `reserved_for` field are implemented; the daily maintenance routine (§14) is specified and pending build. Remaining open items: R2-3 (SUPPORT coverage granularity), R2-4/R2-6 (Keva carryover/reset specifics), R2-7 (ticket↔fulfillment linkage). The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*

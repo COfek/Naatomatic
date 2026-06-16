@@ -207,10 +207,12 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         classification = random.choice(list(Classification))
         roll = random.random()
         cat = next_catalog()
+        reserved = None
         if roll < 0.1:  # broken -> depot
             status, signed = ComputerStatus.BROKEN, depot.id
-        elif roll < 0.2:  # formatting -> depot, calendar event
+        elif roll < 0.2:  # formatting -> depot custody, reserved for the sender
             status, signed = ComputerStatus.FORMATTING, depot.id
+            reserved = random.choice([p for p in real_people if p.active]).id
             sent = date.today() - timedelta(days=random.randint(0, FORMATTING_DURATION_DAYS - 1))
             formatting_items.append((cat, sent))
         elif roll < 0.3:  # ready for pickup -> depot
@@ -235,6 +237,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
                 status=status.value,
                 classification=classification,
                 signed_to=signed,
+                reserved_for=reserved,
             )
         )
     session.flush()
@@ -285,8 +288,14 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.add(row)
     session.flush()
 
+    # Track each person's assigned intervals to prevent double-booking (HC-GD-7).
+    assigned_intervals: dict[int, list[tuple[date, date]]] = {p.id: [] for p in real_people}
+
     def is_blocked(person_id: int, start: date, end: date) -> bool:
         return any(bs <= end and start <= be for bs, be in date_blocks[person_id])
+
+    def is_busy(person_id: int, start: date, end: date) -> bool:
+        return any(s <= end and start <= e for s, e in assigned_intervals[person_id])
 
     def eligible_for(shift_type: ShiftType, population, rank, start, end) -> m.Personnel | None:
         pool = []
@@ -312,6 +321,9 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
                     continue
             # HC-GD-5: not date-blocked over the shift dates
             if is_blocked(p.id, start, end):
+                continue
+            # HC-GD-7: not already assigned to an overlapping assignment
+            if is_busy(p.id, start, end):
                 continue
             pool.append(p)
         if not pool:
@@ -353,6 +365,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.add(shift)
         session.flush()
         if holder:
+            assigned_intervals[holder.id].append((start, end))  # HC-GD-7
             jt[holder.id].total_burden_points += BURDEN[stype]
             if stype == ShiftType.WEEK_LONG:
                 jt[holder.id].week_long_count += 1
@@ -377,7 +390,9 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         end = start + timedelta(days=days - 1)
         pool = [
             p for p in real_people
-            if p.active and p.can_do_adhoc and not is_blocked(p.id, start, end)
+            if p.active and p.can_do_adhoc
+            and not is_blocked(p.id, start, end)
+            and not is_busy(p.id, start, end)  # HC-GD-7
         ]
         holder = min(pool, key=lambda x: jt[x.id].total_burden_points) if pool else None
         mission = m.AdHocMission(
@@ -392,6 +407,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.add(mission)
         session.flush()
         if holder:
+            assigned_intervals[holder.id].append((start, end))  # HC-GD-7
             jt[holder.id].total_burden_points += 0.5 * days
             session.add(
                 m.CalendarEvent(

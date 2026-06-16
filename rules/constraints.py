@@ -252,6 +252,25 @@ def check_status(session: Session) -> list[str]:
     return violations
 
 
+def check_hc_gd_7(session: Session) -> list[str]:
+    """HC-GD-7: a person's assignments (shifts + ad-hoc) must not overlap in time."""
+    by_person: dict[int, list[_Assignment]] = defaultdict(list)
+    for a in _assignments(session):
+        by_person[a.holder_id].append(a)
+    violations = []
+    for pid, items in by_person.items():
+        items.sort(key=lambda x: (x.start, x.end))
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                if items[j].start > items[i].end:
+                    break  # sorted by start; no later item can overlap item i
+                violations.append(
+                    f"person {pid}: {items[i].kind} {items[i].id} ({items[i].start}..{items[i].end}) "
+                    f"overlaps {items[j].kind} {items[j].id} ({items[j].start}..{items[j].end})"
+                )
+    return violations
+
+
 # --------------------------------------------------------------------------- #
 # Registry + runner
 # --------------------------------------------------------------------------- #
@@ -270,6 +289,7 @@ ALL_CHECKS: list[Check] = [
     Check("HC-GD-3", "Keva within annual quota (2 week / 4 day)", check_hc_gd_3),
     Check("HC-GD-5", "Assignee not date-blocked on the dates", check_hc_gd_5),
     Check("HC-GD-6", "Assignee has duty-type flag (SUPPORT=>Sadir)", check_hc_gd_6),
+    Check("HC-GD-7", "No overlapping assignments per person", check_hc_gd_7),
     Check("DEPOT", "Broken/formatting -> depot; in-use -> real person", check_depot),
     Check("STATUS", "Equipment status valid for its kind", check_status),
 ]
