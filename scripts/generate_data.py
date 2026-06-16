@@ -119,7 +119,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
 
     # --- Network: switches + ports + wall jacks ---
     num_switches = max(2, num_personnel // 6)
-    all_ports: list[m.Port] = []
+    all_ports: list[tuple[m.Port, Classification]] = []  # (port, switch classification)
     for i in range(num_switches):
         classification = random.choice(list(Classification))
         total_ports = random.choice([8, 16, 24])

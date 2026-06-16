@@ -547,4 +547,22 @@ Each test run uses a fresh **in-memory SQLite (`:memory:`)** database seeded fro
 
 ---
 
-*All open questions are resolved and the stack is confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Next step: lock the data schema from the entity tables above and build pillar by pillar.*
+## 13. Review Findings — Round-2 Open Questions
+
+A structured review (design holes, code correctness, design↔code consistency, test coverage) surfaced the following genuine gaps. These are **decisions still to make**, not yet reflected in the rules above. Severity in brackets.
+
+- **R2-1 — Time/scheduler actor [HIGH].** The system is chat-only and local, with **no background process**. Several "automatic, time-driven" behaviors therefore have no actor: (a) FORMATTING→READY_FOR_PICKUP after 14 days, (b) Keva quota reset at the calendar-year boundary, (c) keeping calendars fresh. *Recommendation:* make formatting status **compute-on-read** (derive from the formatting event's dates — same "derive don't store" rule we already use), and add an explicit **maintenance command** the agent/operator runs for year rollover. Decide per behavior.
+- **R2-2 — Assignee double-booking [HIGH].** No rule prevents one person being assigned to **two overlapping assignments** (guard+guard, guard+ad-hoc, support+guard). HC-GD-0/5/6 only check targeting, date-blocks, and flags — not collisions with the person's *other* assignments. *Recommendation:* add **HC-GD-7 (no overlapping assignments per person)** and enforce it in the scheduler and the generator.
+- **R2-3 — SUPPORT continuous coverage [MED].** SUPPORT is "round-the-clock," but modeled as a single `Shift` row with one assignee. How is 24/7 coverage represented — one standby row per day, a rotation, handoffs? Define the granularity.
+- **R2-4 — Keva quota unreachable [MED].** If a Keva member's duty flags or date-blocks make the 2/4 quota unreachable in a year, is the quota **waived** or **deferred** (carryover in the under-served direction)? (Open since the carryover discussion; never resolved.)
+- **R2-5 — HC-GD-1/2 semantics [MED].** "Exactly 2 week-long / 4 single-day per year" are **end-of-year targets**, not per-snapshot invariants, so they can't be validated on a mid-year database. Clarify they're enforced by the **scheduler's planning**, not by `verify.py`. Separately, the cap side **HC-GD-3** currently ignores carryover, the calendar-year window, and shift status — tighten once R2-1/R2-6 are decided.
+- **R2-6 — HC-GD-4 carryover unimplemented [MED].** `week_long_carryover` / `single_day_carryover` exist in the JusticeTable but nothing populates, enforces, or validates them. Depends on the year-rollover actor (R2-1).
+- **R2-7 — Ticket↔fulfillment linkage [MED].** Equipment-request tickets don't link to the actual item signed out; network-request tickets don't specify which port/wall-jack mapping is written on resolve. Also: `RESOLVED` is terminal — define the **reopen** path if an issue recurs.
+- **R2-8 — Computer status transition guards [LOW].** The §5 lifecycle is documented but not enforced as a state machine (e.g., is READY_TO_USE→BROKEN legal directly?). Decide whether to guard transitions.
+- **R2-9 — Audit log & equipment transfers [LOW].** `AuditLog` and `EquipmentTransfer` are first-class in the design but nothing writes them yet. Wire them into the repository layer (every mutation → audit row; every sign/return → transfer row) when that layer is built.
+
+> Note: **SC-GD-1/2** (Sadir balancing + tie-break) are **soft** optimization rules, enforced at *assignment time* by the scheduler — they are correctly **not** in `verify.py` (which checks hard invariants only).
+
+---
+
+*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). The §13 round-2 items are the next design decisions; the project structure template (see `PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*
