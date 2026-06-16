@@ -306,6 +306,25 @@ There is a reserved sentinel personnel record with **personal number `1234567`**
 
 This cleanly answers two earlier questions: a broken item can't be signed out to a real person (it lives under the depot), and the limit logic never counts depot-held items against anyone.
 
+### Equipment Dispensing Pipeline (decided)
+The end-to-end flow when a soldier wants equipment. Validation happens **twice** — once to open the ticket, once at resolution — because stock and holdings can change in between.
+
+1. **Request** — soldier asks (via chat) for N monitors, or a computer of classification X.
+2. **Cap validation (projected state).** Reject if fulfilling the request would exceed a limit. The check is on **current holdings + this request**, where "holdings" counts items `signed_to` the person **and** items `reserved_for` them (so an in-formatting machine still counts):
+   - monitors held + requested ≤ 2 (HC-LOG-1)
+   - per classification: computers held + requested ≤ 1 (HC-LOG-2)
+   - (This subsumes "he already has too many" and "the request itself is absurd, e.g. asking for 3 monitors" — they're the same projected-cap test.)
+3. **Stock check.** Confirm a usable matching item exists in inventory:
+   - **Computer:** status `READY_TO_USE` and in inventory (held by the depot, not a person).
+   - **Monitor:** status `FUNCTIONAL` and in inventory.
+   - **No reservation is made here** (decided) — opening the ticket only confirms stock *exists*; the specific item is chosen at resolution.
+4. **Ticket opens** (`EQUIPMENT_REQUEST`, `OPEN`).
+5. **Manager review (pull-based, decided).** The logistics officer **asks the chat** for open tickets (e.g. on login or "show open equipment tickets"). **No push notifications** — consistent with §9 (revisit WhatsApp/email later if needed).
+6. **Physical handover.** The manager physically gives the soldier the item.
+7. **Resolve (chat).** The manager runs `resolve_ticket` (see §3): it **re-validates** steps 2–3 against the *current* state (stock or holdings may have shifted), then signs the item over, unassigns the depot, links the ticket to the item, closes it, and records a transfer/audit row. If re-validation now fails (e.g. last unit gone, or requester hit the cap meanwhile), the resolution is refused and the ticket stays open with a reason.
+
+> **Two-gate validation** is the key property: step 2–3 gate *ticket creation* (don't open an obviously-impossible request); step 7 re-gates *fulfilment* (the world may have changed since the ticket opened). The same HC-LOG-1/2 logic runs at both points — single source of truth, two call sites.
+
 ---
 
 ## 6. Pillar 3 — Guard Duty Scheduling Agents
