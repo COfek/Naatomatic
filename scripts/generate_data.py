@@ -46,7 +46,6 @@ from models import tables as m
 
 YEAR = 2026
 YEAR_START = date(YEAR, 1, 1)
-BURDEN = {ShiftType.WEEK_LONG: 7.0, ShiftType.SINGLE_DAY: 1.0, ShiftType.SUPPORT: 1.0}
 
 
 def rand_date_in_year(fake: Faker) -> date:
@@ -340,12 +339,14 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             weights=[2, 5, 3],
         )[0]
         start = rand_date_in_year(fake)
+        tod = None
         if stype == ShiftType.WEEK_LONG:
             end = start + timedelta(days=6)
-            tod = None
-        else:
+        elif stype == ShiftType.SINGLE_DAY:
             end = start
-            tod = random.choice(list(TimeOfDay)) if stype == ShiftType.SINGLE_DAY else None
+            tod = random.choice(list(TimeOfDay))
+        else:  # SUPPORT — 24/7 standby; a Friday shift covers Fri+Sat as one 2-day shift
+            end = start + timedelta(days=1) if start.weekday() == 4 else start
         # SUPPORT is Sadir-only; sometimes target a population/rank.
         population = Population.SADIR if stype == ShiftType.SUPPORT else (
             random.choice([None, Population.KEVA, Population.SADIR])
@@ -366,7 +367,10 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.flush()
         if holder:
             assigned_intervals[holder.id].append((start, end))  # HC-GD-7
-            jt[holder.id].total_burden_points += BURDEN[stype]
+            # Burden = 1 point per day: WEEK_LONG=7, SINGLE_DAY=1,
+            # SUPPORT=days covered (1 weekday; 2 for a Fri-Sat weekend).
+            shift_days = (end - start).days + 1
+            jt[holder.id].total_burden_points += 7.0 if stype == ShiftType.WEEK_LONG else float(shift_days)
             if stype == ShiftType.WEEK_LONG:
                 jt[holder.id].week_long_count += 1
             elif stype == ShiftType.SINGLE_DAY:

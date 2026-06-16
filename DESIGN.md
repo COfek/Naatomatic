@@ -302,6 +302,8 @@ Two distinct scheduling models sharing the **Justice Table**.
 **Shift**
 
 > **Duty types:** `WEEK_LONG` and `SINGLE_DAY` are guard shifts. `SUPPORT` is the round-the-clock **customer-support standby** duty — a person on call to handle customers' support tickets. ⚠️ **Naming:** a SUPPORT shift is unrelated to the internal **Ticket** entity (§3), which is a branch-internal request about network/logistics/shifts. Different concepts — don't conflate.
+>
+> **SUPPORT coverage (decided).** Every single day must have **exactly one** SUPPORT person on call (continuous 24/7 cover). Weekdays (Sun–Thu) are one-day SUPPORT shifts. The **weekend is one shift covering Friday + Saturday** assigned to a single person — it spans 2 days (`start_date`=Fri, `end_date`=Sat) and counts **double** in burden points (2). Filling every day with no gaps and no overlaps is the **scheduler's** responsibility; HC-GD-7 already guarantees no person covers two overlapping days.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -332,7 +334,7 @@ Two distinct scheduling models sharing the **Justice Table**.
 |------------|--------|
 | WEEK_LONG guard shift | 7 (1 per day) |
 | SINGLE_DAY guard shift | 1 |
-| SUPPORT shift | 1 |
+| SUPPORT shift | **number of days covered**: 1 for a weekday, **2 for a Fri–Sat weekend** (one person covers both days = double) |
 | AdHoc mission | **0.5 × number of days** (no overnight stay — half weight) |
 
 All assignment types accumulate into the same `total_burden_points`, so balancing sees a soldier's *complete* load, not just guard duty.
@@ -557,7 +559,7 @@ A structured review (design holes, code correctness, design↔code consistency, 
 
 - **R2-1 — Time/scheduler actor [HIGH]. ✓ RESOLVED.** The system is chat-only/local with no background clock, so time-driven transitions are handled by an **idempotent daily maintenance routine** (see §14): formatting completion, shift/mission completion, and the Keva year reset. Formatting status is derived from the slot's `end_date` and flipped by maintenance. (The carryover/year-reset specifics still depend on R2-4/R2-6.)
 - **R2-2 — Assignee double-booking [HIGH]. ✓ RESOLVED.** Added **HC-GD-7 (no overlapping assignments per person)** to §6 — enforced in `rules/constraints.py`, checked by `verify.py`, and respected by the generator.
-- **R2-3 — SUPPORT continuous coverage [MED].** SUPPORT is "round-the-clock," but modeled as a single `Shift` row with one assignee. How is 24/7 coverage represented — one standby row per day, a rotation, handoffs? Define the granularity.
+- **R2-3 — SUPPORT continuous coverage [MED]. ✓ RESOLVED.** One SUPPORT person per day, every day (24/7). Weekdays = one-day shifts; the **weekend (Fri+Sat) is one 2-day shift** for a single person, counting **double** (2 burden points). See §6 SUPPORT coverage note and the Burden Points table. Gap-free coverage is the scheduler's job; HC-GD-7 prevents overlaps.
 - **R2-4 — Keva quota unreachable [MED].** If a Keva member's duty flags or date-blocks make the 2/4 quota unreachable in a year, is the quota **waived** or **deferred** (carryover in the under-served direction)? (Open since the carryover discussion; never resolved.)
 - **R2-5 — HC-GD-1/2 semantics [MED].** "Exactly 2 week-long / 4 single-day per year" are **end-of-year targets**, not per-snapshot invariants, so they can't be validated on a mid-year database. Clarify they're enforced by the **scheduler's planning**, not by `verify.py`. Separately, the cap side **HC-GD-3** currently ignores carryover, the calendar-year window, and shift status — tighten once R2-1/R2-6 are decided.
 - **R2-6 — HC-GD-4 carryover unimplemented [MED].** `week_long_carryover` / `single_day_carryover` exist in the JusticeTable but nothing populates, enforces, or validates them. Depends on the year-rollover actor (R2-1).
