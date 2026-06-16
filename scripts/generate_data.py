@@ -211,9 +211,11 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             status, signed = ComputerStatus.DECOMMISSIONED, None
         elif roll < 0.15:  # broken -> depot
             status, signed = ComputerStatus.BROKEN, depot.id
-        elif roll < 0.25:  # formatting -> depot custody, reserved for the sender
+        elif roll < 0.25:  # formatting -> depot custody (intake = unreserved; repair = reserved)
             status, signed = ComputerStatus.FORMATTING, depot.id
-            reserved = random.choice([p for p in real_people if p.active]).id
+            if random.random() < 0.5:  # repair for a specific person -> reserved
+                reserved = random.choice([p for p in real_people if p.active]).id
+            # else: intake of a new computer -> not reserved, will go straight to storage
             sent = date.today() - timedelta(days=random.randint(0, FORMATTING_DURATION_DAYS - 1))
             formatting_items.append((cat, sent))
         elif roll < 0.33:  # ready for pickup -> depot

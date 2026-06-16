@@ -256,23 +256,25 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 **Computer status lifecycle**
 | Status | Meaning |
 |--------|---------|
-| `FORMATTING` | Sent to formatting (routine re-image **or** a repair attempt). Occupies a **2-week slot** on the Formatting Calendar from the send date. |
-| `READY_FOR_PICKUP` | The formatting window elapsed successfully; the machine is done and awaiting collection. |
-| `READY_TO_USE` | Picked up and back in inventory (מלאי), available to be signed out / used. |
+| `FORMATTING` | Being formatted. Two cases: **intake** (a new computer must be formatted before it can be used) and **repair** (a broken machine is re-imaged). Occupies a **2-week slot** on the Formatting Calendar from the send date. |
+| `READY_FOR_PICKUP` | Formatting finished **and** the machine was reserved for a specific person, who collects it. |
+| `READY_TO_USE` | In inventory / storage (מלאי), available to be signed out. A new computer reaches here only **after** intake formatting. |
 | `IN_USE` | Currently signed to and used by a personnel member. |
 | `BROKEN` | Malfunctioning, still in the branch (awaiting a fix attempt). |
-| `DECOMMISSIONED` | **Out of service and removed from the branch** — IT could not fix it. **Terminal.** Held by nobody (`signed_to`/`reserved_for` cleared). The row is kept for history; it is no longer part of inventory. |
+| `DECOMMISSIONED` | **Out of service and removed from the branch** — IT could not fix it. **Terminal.** Held by nobody (`signed_to`/`reserved_for` cleared). Row kept for history; not part of inventory. |
+
+**Intake rule (decided):** a computer **can't be used the moment it arrives.** When a new computer is received (assigned to the logistics manager), it is **sent to formatting first**, then enters storage. So the normal entry path is: `(new)` → `FORMATTING` → `READY_TO_USE` → `IN_USE`.
 
 ```
-              sent to format        +2 weeks (success)        picked up
-   ─────────────────────────► FORMATTING ──────► READY_FOR_PICKUP ──────► READY_TO_USE
-                                  │                                            │   ▲
-                    IT can't fix  │                                  signed out │   │ returned
-                                  ▼                                            ▼   │
-   BROKEN ◄── (in use, breaks) ── IN_USE ◄─────────────────────────────────────┘
-     │                                  
-     │ sent to fix → FORMATTING ─(IT can't fix)─► DECOMMISSIONED  (terminal: removed from branch)
-     └────────────────────────────────────────►  DECOMMISSIONED
+   (new computer / repaired)                    not reserved
+        arrives → FORMATTING ───────────────────────────────► READY_TO_USE ──┐
+                     │  │                                          ▲  │       │ sign out
+        IT can't fix │  │ reserved for someone                    │  │ return ▼
+                     │  └──► READY_FOR_PICKUP ──(collected)────────┘  └──── IN_USE
+                     ▼                                                        │ breaks
+              DECOMMISSIONED ◄──(IT can't fix)── BROKEN ◄────────────────────┘
+              (terminal: removed                   │ sent to fix
+               from branch)                        └──► FORMATTING
 ```
 
 ⚠️ASSUMPTION — `READY_TO_USE` = available in inventory; `IN_USE` = signed to someone. `signed_to` is set on `IN_USE` and cleared on return.
@@ -280,14 +282,15 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 **Computer state machine (decided — resolves R2-8).** Only these transitions are legal; a tool that changes status must reject anything else:
 | From | Allowed to |
 |------|-----------|
-| `READY_TO_USE` | `IN_USE` (sign out), `FORMATTING` (routine re-image), `BROKEN` |
+| *(new intake)* | starts at `FORMATTING` |
+| `FORMATTING` | `READY_TO_USE` (not reserved → into storage), `READY_FOR_PICKUP` (reserved for someone), `DECOMMISSIONED` (IT can't fix) |
+| `READY_TO_USE` | `IN_USE` (sign out), `BROKEN` |
 | `IN_USE` | `READY_TO_USE` (return), `BROKEN` (breaks in use) |
 | `BROKEN` | `FORMATTING` (attempt repair), `DECOMMISSIONED` (unfixable) |
-| `FORMATTING` | `READY_FOR_PICKUP` (success, via daily maintenance), `DECOMMISSIONED` (IT can't fix) |
-| `READY_FOR_PICKUP` | `READY_TO_USE` (returned to inventory), `IN_USE` (handed directly to `reserved_for`) |
+| `READY_FOR_PICKUP` | `READY_TO_USE` (into inventory), `IN_USE` (handed directly to `reserved_for`) |
 | `DECOMMISSIONED` | — (terminal) |
 
-(Monitors: `FUNCTIONAL` ⇄ `BROKEN`; `BROKEN` → `DECOMMISSIONED`.)
+A working in-inventory computer is **not** sent to formatting — formatting is entered only on **intake** or from **`BROKEN`**. (Monitors: `FUNCTIONAL` ⇄ `BROKEN`; `BROKEN` → `DECOMMISSIONED`.)
 
 **Decommissioning & removal (documented).** When IT declares an item unfixable, a `decommission_item` tool sets status `DECOMMISSIONED`, clears `signed_to` and `reserved_for` (it has left the branch), and **records the removal**: an `EquipmentTransfer` (`to_personnel = null`, reason `"decommissioned — IT unable to repair"`) plus an `AuditLog` entry (who/when/why). Decommissioned items are excluded from inventory/stock queries but remain in the table for history.
 
@@ -619,7 +622,7 @@ A structured review (design holes, code correctness, design↔code consistency, 
 - **R2-5 — HC-GD-1/2 semantics [MED].** "Exactly 2 week-long / 4 single-day per year" are **end-of-year targets**, not per-snapshot invariants, so they can't be validated on a mid-year database. Clarify they're enforced by the **scheduler's planning**, not by `verify.py`. Separately, the cap side **HC-GD-3** currently ignores carryover, the calendar-year window, and shift status — tighten once R2-1/R2-6 are decided.
 - **R2-6 — HC-GD-4 carryover unimplemented [MED]. Policy decided, build pending.** The rule is now fully specified (bidirectional — see R2-4/HC-GD-4). Still to build: the year-reset code in `scripts/maintenance.py` that, at the calendar-year boundary, sets `*_carryover = done − quota` (signed; subject to the impossible-debt guard), resets the counts, and re-anchors `period_start`.
 - **R2-7 — Ticket↔fulfillment linkage [MED]. ✓ RESOLVED.** Tickets now carry `resolved_item_catalog` / `resolved_port_id`, set by a chat-driven `resolve_ticket` tool (see §3 Ticket resolution flow) that validates, applies the fulfilment, unassigns the depot, closes the ticket, and records a transfer/audit row. Interface = the chat (manager role), not a separate app. *(Still minor/open: the reopen path — `RESOLVED` is terminal; if an issue recurs, open a new ticket for now.)*
-- **R2-8 — Computer status transition guards [LOW]. ✓ RESOLVED.** The legal-transition table is now defined in §5, including the new terminal **`DECOMMISSIONED`** state (out of service / removed from branch when IT can't fix it). Enforcement is a `set_equipment_status`/`decommission_item` tool guard (built with the Logistics tools); the integrity check already asserts decommissioned items hold no custody.
+- **R2-8 — Computer status transition guards [LOW]. ✓ RESOLVED.** The legal-transition table is now defined in §5, including: the **intake rule** (a new computer can't be used on arrival — it starts at `FORMATTING`, then `READY_TO_USE`, then `IN_USE`); `FORMATTING` exits to `READY_TO_USE` (unreserved) or `READY_FOR_PICKUP` (reserved); and the terminal **`DECOMMISSIONED`** state. Formatting is entered only on intake or from `BROKEN` (a working in-inventory computer is never formatted). Enforcement is a `set_equipment_status`/`decommission_item` tool guard (built with the Logistics tools); the integrity check already asserts decommissioned items hold no custody.
 - **R2-9 — Audit log & equipment transfers [LOW].** `AuditLog` and `EquipmentTransfer` are first-class in the design but nothing writes them yet. Wire them into the repository layer (every mutation → audit row; every sign/return → transfer row) when that layer is built.
 
 > Note: **SC-GD-1/2** (Sadir balancing + tie-break) are **soft** optimization rules, enforced at *assignment time* by the scheduler — they are correctly **not** in `verify.py` (which checks hard invariants only).
@@ -633,7 +636,7 @@ The system is chat-only and local — there is **no background clock**. Anything
 **Daily tasks:**
 | Task | Action |
 |------|--------|
-| **Formatting completion** | Each computer whose Formatting-Calendar slot `end_date` has passed and is still `FORMATTING` → `READY_FOR_PICKUP` (custody stays with the depot; `reserved_for` unchanged). |
+| **Formatting completion** | Each computer whose Formatting-Calendar slot `end_date` has passed and is still `FORMATTING`: if `reserved_for` is set → `READY_FOR_PICKUP` (someone is waiting to collect it); otherwise → `READY_TO_USE` (straight into storage — e.g. intake of a new computer). Custody stays with the depot until collected/used. |
 | **Shift / mission completion** | Each `Shift` / `AdHocMission` with `end_date` in the past and status `ASSIGNED` → `COMPLETED`. (Nothing flips these otherwise.) |
 | **Keva year reset** | On a new calendar year, for each Keva member: set `week_long_carryover = week_long_count − 2` and `single_day_carryover = single_day_count − 4` (**signed** — positive = surplus reduces next year, negative = shortfall increases it), reset the counts to 0, and re-anchor `period_start` to Jan 1. Subject to the impossible-debt guard (no shortfall accrues when the duty flag is off) — see HC-GD-4 / R2-4. |
 
