@@ -151,6 +151,8 @@ Both Network and Logistics requests are tickets with a common state machine.
 | `subject` / `description` | string | |
 | `payload` | JSON | type-specific request details |
 | `created_at` / `updated_at` / `resolved_at` | timestamp | |
+| `resolved_item_catalog` | FK → EquipmentItem (nullable) | EQUIPMENT_REQUEST: the item handed over (set on resolution) |
+| `resolved_port_id` | FK → Port (nullable) | NETWORK_REQUEST: the port connected (set on resolution) |
 | `history` | list | append-only status transitions |
 
 **Ticket state machine**
@@ -159,7 +161,20 @@ OPEN ⇄ ON_HOLD → RESOLVED (terminal)
 ```
 - `OPEN` — submitted, awaiting handling.
 - `ON_HOLD` — handling paused (e.g., waiting on the requester, parts, or scheduling).
-- `RESOLVED` — the underlying problem is solved (terminal). For a network connection ticket, reaching `RESOLVED` is the trigger that updates the WallJack→Port mapping (see §4).
+- `RESOLVED` — the underlying problem is solved (terminal). Resolution is what links the request to its fulfilment (see Ticket resolution flow below).
+
+**Ticket resolution flow (decided — chat-driven).** A manager (with the right role per §9) resolves a ticket **through the chat agent** — there is no separate app; the chat *is* the manager's interface. A `resolve_ticket` tool runs these steps atomically, validated by the constraint engine first:
+1. **Validate** the intended outcome against hard rules (e.g., HC-LOG-2 before signing a computer; HC-NET-1 before allocating a port). Reject if it would violate one — the DB is left unchanged.
+2. **Apply the fulfilment:**
+   - *EQUIPMENT_REQUEST* → sign the chosen item to the requester (`signed_to = requester`), clear `reserved_for`, set status (`READY_TO_USE → IN_USE`); set `resolved_item_catalog`. The item is no longer held by the depot (`1234567`).
+   - *NETWORK_REQUEST* → write the WallJack→Port mapping, set the port `OCCUPIED` / `allocated_to = requester`; set `resolved_port_id`.
+3. **Close the ticket** (`status = RESOLVED`, stamp `resolved_at`).
+4. **Record** an `EquipmentTransfer` (for equipment) and an `AuditLog` entry (always).
+
+> This single tool answers Issue R2-7 (request↔fulfilment link), the "depot must be unassigned on resolution" requirement, and feeds R2-9 (transfer/audit rows). A future GUI/app, if ever added, would call the same tool — the logic is interface-independent.
+
+### Audit Log
+Append-only. Every mutating action writes one entry: `{ id, actor, action, entity_type, entity_id, before, after, timestamp }`.
 
 ### Audit Log
 Append-only. Every mutating action writes one entry: `{ id, actor, action, entity_type, entity_id, before, after, timestamp }`.
@@ -567,7 +582,7 @@ A structured review (design holes, code correctness, design↔code consistency, 
 - **R2-4 — Keva under-served [MED]. ✓ RESOLVED — defer.** If a Keva member did **fewer** than their quota, the shortfall **rolls forward**: next year they owe the difference on top of the base (did 1 of 2 week-long → owe 3 next year). Carryover is therefore **bidirectional** (surplus reduces, shortfall increases) — see HC-GD-4. **Impossible-debt guard (decided):** a shortfall accrues only if the member's duty flag was on; if `can_do_*` is false the quota doesn't apply and nothing accrues, so a permanently-restricted member never builds an unpayable debt.
 - **R2-5 — HC-GD-1/2 semantics [MED].** "Exactly 2 week-long / 4 single-day per year" are **end-of-year targets**, not per-snapshot invariants, so they can't be validated on a mid-year database. Clarify they're enforced by the **scheduler's planning**, not by `verify.py`. Separately, the cap side **HC-GD-3** currently ignores carryover, the calendar-year window, and shift status — tighten once R2-1/R2-6 are decided.
 - **R2-6 — HC-GD-4 carryover unimplemented [MED]. Policy decided, build pending.** The rule is now fully specified (bidirectional — see R2-4/HC-GD-4). Still to build: the year-reset code in `scripts/maintenance.py` that, at the calendar-year boundary, sets `*_carryover = done − quota` (signed; subject to the impossible-debt guard), resets the counts, and re-anchors `period_start`.
-- **R2-7 — Ticket↔fulfillment linkage [MED].** Equipment-request tickets don't link to the actual item signed out; network-request tickets don't specify which port/wall-jack mapping is written on resolve. Also: `RESOLVED` is terminal — define the **reopen** path if an issue recurs.
+- **R2-7 — Ticket↔fulfillment linkage [MED]. ✓ RESOLVED.** Tickets now carry `resolved_item_catalog` / `resolved_port_id`, set by a chat-driven `resolve_ticket` tool (see §3 Ticket resolution flow) that validates, applies the fulfilment, unassigns the depot, closes the ticket, and records a transfer/audit row. Interface = the chat (manager role), not a separate app. *(Still minor/open: the reopen path — `RESOLVED` is terminal; if an issue recurs, open a new ticket for now.)*
 - **R2-8 — Computer status transition guards [LOW].** The §5 lifecycle is documented but not enforced as a state machine (e.g., is READY_TO_USE→BROKEN legal directly?). Decide whether to guard transitions.
 - **R2-9 — Audit log & equipment transfers [LOW].** `AuditLog` and `EquipmentTransfer` are first-class in the design but nothing writes them yet. Wire them into the repository layer (every mutation → audit row; every sign/return → transfer row) when that layer is built.
 
@@ -592,4 +607,4 @@ The system is chat-only and local — there is **no background clock**. Anything
 
 ---
 
-*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved this round: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (defer under-served — bidirectional carryover), R2-6 (carryover policy — build pending). The daily maintenance routine (§14) is now fully specified and pending build. Remaining open items: R2-7 (ticket↔fulfillment linkage), R2-8 (status transition guards), R2-9 (audit/transfer writes). The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*
+*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (defer under-served — bidirectional carryover), R2-6 (carryover policy), R2-7 (ticket resolution flow, chat-driven). The daily maintenance routine (§14) and the `resolve_ticket` flow (§3) are fully specified and pending build. Remaining open items: R2-8 (computer status transition guards) and R2-9 (audit/transfer writes — first use now specified in the resolution flow). Both are best handled while building the Logistics/Network tools. The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*

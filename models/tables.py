@@ -110,6 +110,13 @@ class Ticket(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # What the ticket resolved into (set on resolution, links request -> fulfilment).
+    resolved_item_catalog: Mapped[str | None] = mapped_column(
+        ForeignKey("equipment_item.catalog_number"), nullable=True
+    )  # EQUIPMENT_REQUEST -> the item handed over
+    resolved_port_id: Mapped[int | None] = mapped_column(
+        ForeignKey("port.id"), nullable=True
+    )  # NETWORK_REQUEST -> the port that got connected
 
 
 class AuditLog(Base):
