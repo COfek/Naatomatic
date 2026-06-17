@@ -413,7 +413,9 @@ Two distinct scheduling models sharing the **Justice Table**.
 
 > **Duty types:** `WEEK_LONG` and `SINGLE_DAY` are guard shifts. `SUPPORT` is the round-the-clock **customer-support standby** duty — a person on call to handle customers' support tickets. ⚠️ **Naming:** a SUPPORT shift is unrelated to the internal **Ticket** entity (§3), which is a branch-internal request about network/logistics/shifts. Different concepts — don't conflate.
 >
-> **SUPPORT coverage (decided).** Every single day must have **exactly one** SUPPORT person on call (continuous 24/7 cover). Weekdays (Sun–Thu) are one-day SUPPORT shifts. The **weekend is one shift covering Friday + Saturday** assigned to a single person — it spans 2 days (`start_date`=Fri, `end_date`=Sat) and counts **double** in burden points (2). Filling every day with no gaps and no overlaps is the **scheduler's** responsibility; HC-GD-7 already guarantees no person covers two overlapping days.
+> **SUPPORT coverage (decided).** Every single day must have **exactly one** SUPPORT person on call (continuous 24/7 cover). Weekdays (Sun–Thu) are one-day SUPPORT shifts; the **weekend is one shift covering Friday + Saturday** assigned to a single person (spans 2 days, counts **double** = 2 points).
+>
+> **The SUPPORT roster is generated a quarter ahead by maintenance (decided — GD-2).** Unlike guard shifts (whose dates are handed in), SUPPORT dates are "every day," so the system generates them itself: a **quarterly maintenance step** (see §14) lays out the upcoming quarter's slots — weekday singles + Fri–Sat weekend pairs tiling every day exactly once — and **assigns them ahead** to eligible Sadir (`can_do_support`) using the **same Justice-Table fairness** (lowest burden first, constraints respected). It's idempotent: it only generates a quarter that isn't already laid out. A **coverage check** (`check_support_coverage`) flags any uncovered day (gap) or any day with two people (overlap) — a safety net if a slot is later cancelled. HC-GD-7 already prevents one person covering two overlapping days.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -520,6 +522,8 @@ The Guard Duty agent supports these five operations:
 - `add_date_block(start, end, reason)` — a soldier submits a constraint (→ `PENDING`; rejected if it overlaps their own existing assignment).
 - `review_date_blocks()` / `approve_date_block(id)` / `reject_date_block(id)` — `SHIFT_MANAGER` only: act on pending constraints.
 - `list_my_shifts(include_past?)` — a soldier's own assignments, upcoming and past (op #4).
+- `generate_support_roster(quarter)` — `SHIFT_MANAGER` / maintenance: tile a quarter into daily + weekend SUPPORT slots and assign ahead by fairness (GD-2). Idempotent.
+- `check_support_coverage(date_range)` — report any gap (uncovered day) or overlap (two people) in the SUPPORT roster.
 - `get_justice_table(filter: population?)` — fairness standings (transparency).
 - `mark_shift_completed(shift)`.
 
@@ -734,7 +738,7 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 
 ### Guard Duty agent gaps (review)
 - **GD-1 — Balance among Keva [resolved].** Keva are spread evenly, not just capped — **SC-GD-3** (fewest-of-type first, carryover-adjusted). Carryover is measured vs **fair share**, not the fixed quota (HC-GD-4), so someone who covered for an absentee (did more than peers, even if still ≤ quota) is **compensated with one fewer next year**, and the absentee owes one more. See §6.A.
-- **GD-2 — SUPPORT coverage completeness [open].** Every day needs exactly one SUPPORT person; no mechanism yet to detect gaps/overlaps in the standby roster or confirm a period is fully covered.
+- **GD-2 — SUPPORT coverage completeness [resolved].** A **quarterly maintenance step** (§14) generates the upcoming quarter's SUPPORT slots (tiling every day; weekday singles + Fri–Sat weekend pairs) and assigns them ahead by Justice-Table fairness; idempotent. A `check_support_coverage` safety-net flags gaps/overlaps (e.g. after a cancellation). See §6 SUPPORT note.
 - **GD-3 — Swap nuances [open].** Must a swap be same shift type? How does a cross-population (Keva↔Sadir) swap affect Keva quota counts / burden? Currently just "must be legal."
 - **GD-4 — Unfillable shift [open].** If the eligible pool is empty (all date-blocked or at quota), the shift stays `OPEN`. No escalation/alert or relaxation path defined.
 - **GD-5 — Emergency reassignment & cancellation [open].** Beyond a manager swap, no flow for a last-minute drop-out (sick) or cancelling a no-longer-needed shift (`CANCELLED` exists but unused).
@@ -754,7 +758,8 @@ The system is chat-only and local — there is **no background clock**. Anything
 | **Formatting completion** | Each computer whose Formatting-Calendar slot `end_date` has passed and is still `FORMATTING`: if `reserved_for` is set → `READY_FOR_PICKUP` (someone is waiting to collect it); otherwise → `READY_TO_USE` (straight into storage — e.g. intake of a new computer). Custody stays with the depot until collected/used. |
 | **Shift / mission completion** | Each `Shift` / `AdHocMission` with `end_date` in the past and status `ASSIGNED` → `COMPLETED`. (Nothing flips these otherwise.) |
 | **Leaver cleanup (backstop)** | Any **inactive** person (`active = false`) still holding `CONNECTED` ports or signed equipment → release the ports and return the equipment to inventory (records audit/transfer rows). Normally done at deactivation; this sweep is the safety net. |
-| **Keva year reset** | On a new calendar year, for each Keva member: set `week_long_carryover = week_long_count − 2` and `single_day_carryover = single_day_count − 4` (**signed** — positive = surplus reduces next year, negative = shortfall increases it), reset the counts to 0, and re-anchor `period_start` to Jan 1. Subject to the impossible-debt guard (no shortfall accrues when the duty flag is off) — see HC-GD-4 / R2-4. |
+| **SUPPORT roster (quarterly)** | If the upcoming quarter's SUPPORT coverage isn't laid out yet, **generate it** — tile every day (weekday singles + Fri–Sat weekend pairs) — and **assign ahead** to eligible Sadir by Justice-Table fairness (GD-2). Idempotent: skips a quarter already done. Checked on every run; acts when a new quarter is near. |
+| **Keva year reset** | On a new calendar year, for each Keva member: roll this year's deviation from fair share into `week_long_carryover` / `single_day_carryover` (`carryover += done − fair_share`, **signed** — positive = did more than peers → owes fewer next year, negative = owes more), reset the counts to 0, and re-anchor `period_start` to Jan 1. Subject to the impossible-debt guard (no shortfall for the permanently-unable) — see HC-GD-4 / R2-4. |
 
 **Trigger (decided):** run the routine **on app startup, guarded to once per day** (compare a stored "last maintenance date" to today). No external scheduler required for the local deployment. Optionally, Windows Task Scheduler can also run `scripts/maintenance.py` daily — but the startup guard makes the system self-sufficient.
 
