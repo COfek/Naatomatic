@@ -94,6 +94,21 @@ Enforced at **two layers** (defense in depth):
 
 This applies to **every pillar's tools**, not just network requests.
 
+### Fuzzy reference resolution — "did you mean?"
+When the user **does** give an identifier but it **doesn't exactly match** anything (a mistyped ticket id, catalog number, personal number, jack label, switch name…), the agent must **neither fabricate a match nor hard-fail**. Instead the tool returns the **closest existing candidates** and the agent presents them for the user to choose from.
+
+Example — a manager types `resolve ticket 42` but there is no ticket 42:
+> *"I couldn't find ticket 42. Did you mean one of these open tickets? **41** — Connect workstation (Noa), **45** — Draw equipment (Amit), **38** — Connect workstation (Dana). Which one?"*
+
+The manager replies with the right id (or picks from the list); only then does the action proceed.
+
+How "closest" is computed (in the tool/repository, not guessed by the model):
+- **Numeric ids** (ticket id, port id) → nearest by absolute difference, scoped to the **relevant, actionable set** (e.g. OPEN tickets in the manager's domain).
+- **String identifiers** (catalog number, personal number, jack label) → closest by shared prefix / edit distance.
+- Return the top few (≈3–5); if there are no near matches, say so plainly.
+
+This complements "no fabricated arguments": missing → ask; **present-but-not-found → suggest nearest and let them pick.** Applies to every tool that takes an identifier (notably `resolve_ticket`, which a manager invokes **by ticket id**).
+
 ---
 
 ## 3. Core Domain Model
@@ -173,6 +188,7 @@ OPEN ⇄ ON_HOLD → RESOLVED (terminal)
 - `RESOLVED` — the underlying problem is solved (terminal). Resolution is what links the request to its fulfilment (see Ticket resolution flow below).
 
 **Ticket resolution flow (decided — chat-driven).** A manager (with the right role per §9) resolves a ticket **through the chat agent** — there is no separate app; the chat *is* the manager's interface. A `resolve_ticket` tool runs these steps atomically, validated by the constraint engine first:
+0. **Identify the ticket by id.** The manager resolves *by ticket id* (e.g. "resolve ticket 42"). If the id has **no exact match**, the agent does **not** fail or guess — it lists the **closest open tickets** and asks the manager to pick (see §2 "Fuzzy reference resolution").
 1. **Validate** the intended outcome against hard rules (e.g., HC-LOG-2 before signing a computer; HC-NET-1 before allocating a port). Reject if it would violate one — the DB is left unchanged.
 2. **Apply the fulfilment:**
    - *EQUIPMENT_REQUEST* → sign the chosen item to the requester (`signed_to = requester`), clear `reserved_for`, set status (`READY_TO_USE → IN_USE`); set `resolved_item_catalog`. The item is no longer held by the depot (`1234567`).
