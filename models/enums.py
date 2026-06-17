@@ -52,6 +52,15 @@ class DateBlockStatus(str, enum.Enum):
     REJECTED = "REJECTED"
 
 
+class ConstraintLevel(str, enum.Enum):
+    """Priority of a constraint. CRITICAL is never overridden (hard); the rest are
+    soft — overridden lowest-first only as a last resort to fill a duty (SC-GD-5)."""
+    CRITICAL = "CRITICAL"  # e.g. close-family wedding/funeral, medical — never overridden
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
 # --- Network ---
 class PortStatus(str, enum.Enum):
     DISCONNECTED = "DISCONNECTED"  # not wired to a wall jack / available

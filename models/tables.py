@@ -32,6 +32,7 @@ from models.enums import (
     CalendarSubjectType,
     Classification,
     ComputerStatus,
+    ConstraintLevel,
     DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
@@ -94,6 +95,11 @@ class PersonnelDateBlock(Base):
     # count for HC-GD-5.
     status: Mapped[DateBlockStatus] = mapped_column(
         _enum(DateBlockStatus), default=DateBlockStatus.PENDING
+    )
+    # Priority tier (SC-GD-5): CRITICAL is hard (never overridden); HIGH/MEDIUM/LOW
+    # are soft and overridden lowest-first only as a last resort.
+    level: Mapped[ConstraintLevel] = mapped_column(
+        _enum(ConstraintLevel), default=ConstraintLevel.MEDIUM
     )
 
     personnel: Mapped[Personnel] = relationship(back_populates="date_blocks")

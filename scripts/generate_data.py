@@ -31,6 +31,7 @@ from models.enums import (
     CalendarSubjectType,
     Classification,
     ComputerStatus,
+    ConstraintLevel,
     DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
@@ -115,6 +116,11 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
                     end_date=end,
                     reason=random.choice(["trip", "appointment", "family event", "course"]),
                     status=DateBlockStatus.APPROVED,  # generated blocks are already-approved/in-effect
+                    level=random.choices(
+                        [ConstraintLevel.LOW, ConstraintLevel.MEDIUM,
+                         ConstraintLevel.HIGH, ConstraintLevel.CRITICAL],
+                        weights=[4, 4, 2, 1],
+                    )[0],
                 )
             )
 

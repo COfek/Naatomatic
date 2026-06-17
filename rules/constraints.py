@@ -30,6 +30,7 @@ from models.enums import (
     DEPOT_PERSONAL_NUMBER,
     AssignmentStatus,
     ComputerStatus,
+    ConstraintLevel,
     DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
@@ -174,12 +175,17 @@ def check_hc_gd_0(session: Session) -> list[str]:
 
 
 def check_hc_gd_5(session: Session) -> list[str]:
-    """HC-GD-5: assignee is not date-blocked (APPROVED block) over the assignment's dates."""
+    """HC-GD-5: assignee is not assigned over a CRITICAL approved date block.
+
+    Lower-level blocks (HIGH/MEDIUM/LOW) are soft — overridable as a last resort
+    (SC-GD-5) — so they are not hard violations. CRITICAL is never overridden.
+    """
     violations = []
     blocks: dict[int, list] = defaultdict(list)
     for b in session.scalars(
         select(t.PersonnelDateBlock).where(
-            t.PersonnelDateBlock.status == DateBlockStatus.APPROVED
+            t.PersonnelDateBlock.status == DateBlockStatus.APPROVED,
+            t.PersonnelDateBlock.level == ConstraintLevel.CRITICAL,
         )
     ).all():
         blocks[b.personnel_id].append(b)
