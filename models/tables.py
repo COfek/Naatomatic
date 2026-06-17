@@ -263,7 +263,11 @@ class JusticeTable(Base):
     single_day_count: Mapped[int] = mapped_column(Integer, default=0)
     week_long_carryover: Mapped[int] = mapped_column(Integer, default=0)
     single_day_carryover: Mapped[int] = mapped_column(Integer, default=0)
-    total_burden_points: Mapped[float] = mapped_column(Float, default=0.0)
+    # Separate Sadir fairness pools — balanced independently (a lot of one duty
+    # does not excuse another). See DESIGN §6 "Burden points — separate pools".
+    guard_burden_points: Mapped[float] = mapped_column(Float, default=0.0)    # WEEK_LONG + SINGLE_DAY
+    support_burden_points: Mapped[float] = mapped_column(Float, default=0.0)  # SUPPORT standby
+    adhoc_burden_points: Mapped[float] = mapped_column(Float, default=0.0)    # ad-hoc missions
     period_start: Mapped[date] = mapped_column(Date)
 
 
