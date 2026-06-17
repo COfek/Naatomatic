@@ -484,8 +484,12 @@ Shift **dates are an input**, not something the system invents — the branch is
 1. **Batch list (the normal case).** The branch periodically receives a list of dated shifts to cover:
    - **Half-yearly** — the `WEEK_LONG` shifts (a week here, a week there across the half-year).
    - **Quarterly** — the `SINGLE_DAY` shifts.
-   The manager hands this list (each entry = `{start_date, length → WEEK_LONG/SINGLE_DAY, optional population/rank targeting}`) to the agent, which creates the shift rows and assigns people.
+   Each entry = `{start_date, length → WEEK_LONG/SINGLE_DAY, optional population/rank targeting}`. The agent creates the shift rows and assigns people.
 2. **Single shift (the edge case).** A one-off `WEEK_LONG` or `SINGLE_DAY` shift can appear out of nowhere; it's created and assigned through the **same** logic, just one at a time.
+
+**List intake (decided).** Inputting the shift-date list is a **`SHIFT_MANAGER`-only** action (role-gated per §9 — a regular soldier can't create shifts). It can be provided **two ways** (both supported):
+- **Pasted/stated in chat** — e.g. "week-long: Jan 6–12, Feb 3–9; single-day: Mar 4, Mar 19." The agent parses it, **echoes the parsed shifts back for confirmation**, and asks about anything ambiguous rather than guessing a date (§2 no-fabrication).
+- **CSV / Excel file** — the manager points the system at a local spreadsheet of dates + lengths; it's ingested into the same shift rows (same confirmation step).
 
 **Assignment logic (both modes).** For each shift, pick the person to staff it using the **current Justice Table + constraints**:
 - **Eligible pool** = passes HC-GD-0 (population/rank), HC-GD-5 (not date-blocked on the shift dates), HC-GD-6 (has the duty flag), HC-GD-7 (no overlapping assignment).
@@ -493,8 +497,8 @@ Shift **dates are an input**, not something the system invents — the branch is
 - A batch is assigned **greedily and sequentially**, updating each person's burden as you go, so the whole list comes out balanced (this is exactly what the data generator already does). The manager can `suggest_assignment` (preview) or `assign_shift` (commit), and override a suggestion manually (still constraint-validated).
 
 ### Capabilities (agent tools)
-- `create_shifts(list of {start_date, length, targeting?})` — **batch**: ingest the received list of dates and create shift rows.
-- `create_shift(type, start_date, ...)` — **single** shift (the edge case).
+- `create_shifts(source)` — **batch**, `SHIFT_MANAGER` only: ingest the list — a chat-pasted list **or** a CSV/Excel file path — parse to `{start_date, length, targeting?}`, echo back for confirmation, then create shift rows.
+- `create_shift(type, start_date, ...)` — **single** shift (the edge case), `SHIFT_MANAGER` only.
 - `assign_shift(shift, personnel)` — commit a manual assignment (constraint-validated).
 - `auto_assign(shifts)` — assign a batch automatically, balanced by the Justice Table.
 - `suggest_assignment(shift)` — preview the recommended person(s) per the model, without committing.
