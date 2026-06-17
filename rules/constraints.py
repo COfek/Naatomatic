@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Callable
 
 from sqlalchemy import select
@@ -36,6 +36,7 @@ from models.enums import (
     MonitorStatus,
     Population,
     PortStatus,
+    RANGE_QUAL_VALID_DAYS,
     ShiftType,
 )
 from models import tables as t
@@ -319,6 +320,30 @@ def check_hc_gd_8(session: Session) -> list[str]:
     return violations
 
 
+def check_hc_gd_9(session: Session) -> list[str]:
+    """HC-GD-9: a guard-shift assignee/reserve is range-qualified (<6 months).
+
+    Applies to WEEK_LONG / SINGLE_DAY guard shifts (armed). SUPPORT and ad-hoc
+    don't require it. 'Qualified' = last_range_qualification within RANGE_QUAL_VALID_DAYS
+    of today.
+    """
+    cutoff = date.today() - timedelta(days=RANGE_QUAL_VALID_DAYS)
+    people = {p.id: p for p in session.scalars(select(t.Personnel)).all()}
+    violations = []
+    guard = (ShiftType.WEEK_LONG, ShiftType.SINGLE_DAY)
+    for s in session.scalars(select(t.Shift).where(t.Shift.type.in_(guard))).all():
+        for role, pid in (("primary", s.assigned_to), ("reserve", s.reserve_id)):
+            if pid is None:
+                continue
+            q = people[pid].last_range_qualification
+            if q is None or q < cutoff:
+                violations.append(
+                    f"guard shift id={s.id} {role} person {pid} not range-qualified "
+                    f"(last={q})"
+                )
+    return violations
+
+
 # --------------------------------------------------------------------------- #
 # Registry + runner
 # --------------------------------------------------------------------------- #
@@ -340,6 +365,7 @@ ALL_CHECKS: list[Check] = [
     Check("HC-GD-6", "Assignee has duty-type flag (SUPPORT=>Sadir)", check_hc_gd_6),
     Check("HC-GD-7", "No overlapping assignments per person", check_hc_gd_7),
     Check("HC-GD-8", "Shift reserve differs from the primary", check_hc_gd_8),
+    Check("HC-GD-9", "Guard-shift assignee/reserve is range-qualified", check_hc_gd_9),
     Check("DEPOT", "Broken/formatting -> depot; in-use -> real person", check_depot),
     Check("STATUS", "Equipment status valid for its kind", check_status),
 ]

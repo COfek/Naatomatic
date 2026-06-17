@@ -15,6 +15,7 @@ Naatomatic is an autonomous, AI-agent-based system for managing and optimizing d
 2. **Logistics & End-User Equipment** — computers & monitors inventory, equipment requests, transfers.
 3. **Guard Duty Scheduling** — shift allocation with a "Justice Table," split between Keva (career) and Sadir (mandatory service).
 4. **AdHoc Missions** — sudden, unplanned missions (ceremonies, memorials, volunteering); shares the Justice Table balancing.
+5. **General Knowledge** — read-only help desk: explains how the system works (fairness, eligibility, lifecycles) and walks personnel through branch procedures (onboarding, opening network access, shift readiness, org structure, own details, infosec).
 
 ### Design principles
 - **Hard constraints are enforced at the data/service layer**, not left to the agent's judgment. The LLM agent proposes actions; a deterministic rules engine validates and commits them.
@@ -34,14 +35,14 @@ Naatomatic is an autonomous, AI-agent-based system for managing and optimizing d
                 ┌───────────────────▼──────────────────────┐
                 │           Orchestrator / Router            │
                 │  routes intent → correct pillar agent       │
-                └─┬──────────┬──────────┬──────────┬─────────────┘
-                  │          │          │          │
-        ┌─────────▼──┐ ┌─────▼─────┐ ┌──▼────────┐ ┌▼──────────┐
-        │  Network   │ │ Logistics │ │ Guard Duty│ │  AdHoc    │
-        │   Agent    │ │   Agent   │ │  Agents   │ │  Agent    │
-        └─────────┬──┘ └─────┬─────┘ └──┬────────┘ └┬──────────┘
-                  │          │          │           │
-        ┌─────────▼──────────▼──────────▼───────────▼────────────┐
+                └─┬────────┬────────┬────────┬────────┬───────────┘
+                  │        │        │        │        │
+        ┌─────────▼┐ ┌─────▼────┐ ┌─▼──────┐ ┌▼──────┐ ┌▼──────────┐
+        │ Network  │ │Logistics │ │ Guard  │ │ AdHoc │ │  General  │
+        │  Agent   │ │  Agent   │ │ Duty   │ │ Agent │ │ Knowledge │
+        └─────────┬┘ └─────┬────┘ └─┬──────┘ └┬──────┘ └┬──────────┘
+                  │        │        │         │         │ (read-only)
+        ┌─────────▼────────▼────────▼─────────▼─────────▼──────────┐
         │   Deterministic Rules / Constraint Engine (shared)       │
         │   - validates every mutating action against hard rules   │
         └───────┬──────────────────────────────────────────────────┘
@@ -128,6 +129,9 @@ Shared entities used across pillars.
 | `can_do_single_day` | bool | Eligible for SINGLE_DAY shifts (day or night). Default `true`. |
 | `can_do_support` | bool | Eligible for SUPPORT shifts (**Sadir only**). Default **`false`** — new members must complete a course first; a manager then sets it true. |
 | `can_do_adhoc` | bool | Eligible for ad-hoc missions. Default `true`. |
+| `team_id` | FK → OrgUnit (nullable) | which team the person belongs to (§ General Knowledge) |
+| `phone` / `email` | string (nullable) | contact details (shown for team leaders / own-details) |
+| `last_range_qualification` | date (nullable) | most recent shooting-range qualification; valid ~6 months — required for guard duty (HC-GD-9) |
 | `active` | bool | Soft-disable for personnel who left |
 | `created_at` / `updated_at` | timestamp | |
 
@@ -171,6 +175,18 @@ Held by Personnel as a list (`roles`); empty = plain branch member. Drives permi
 ```
 NETWORK_MANAGER | LOGISTICS_OFFICER | SHIFT_MANAGER
 ```
+
+### OrgUnit (branch structure)
+The department/team tree, surfaced by the General Knowledge agent (structure queries).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | UUID | |
+| `name` | string | e.g. "Network Dept", "Network Team 1" |
+| `kind` | enum | `DEPARTMENT` \| `TEAM` |
+| `parent_id` | FK → OrgUnit (nullable) | a team's department; null for a top-level department |
+| `leader_id` | FK → Personnel (nullable) | the team/department leader |
+| `contact_note` | string (nullable) | optional; default contact is the leader's `phone`/`email` |
 
 ### Ticket (shared lifecycle)
 Both Network and Logistics requests are tickets with a common state machine.
@@ -462,6 +478,7 @@ Each pool is balanced on its own: a SUPPORT shift goes to the eligible Sadir wit
 - **HC-GD-5 — Availability (hard part = CRITICAL).** A person must not be assigned over an **`APPROVED`, `CRITICAL`** date block — that's absolute. Lower-level approved blocks (`HIGH`/`MEDIUM`/`LOW`) are **soft**: normally still avoided, but overridable as a last resort (see SC-GD-5). Pending/rejected blocks don't count.
 - **HC-GD-6 — Duty-type eligibility.** A person must have the matching duty-type flag set true: `can_do_week_long` for WEEK_LONG shifts, `can_do_single_day` for SINGLE_DAY shifts, `can_do_support` for SUPPORT shifts, `can_do_adhoc` for ad-hoc missions. (SUPPORT shifts are **Sadir-only**, and `can_do_support` is false until a member completes the required course.)
 - **HC-GD-7 — No overlapping assignments.** A person may not be assigned to two assignments whose date ranges overlap — at most one shift/SUPPORT/ad-hoc at a time. Applies across all assignment types (a guard shift and an ad-hoc mission on the same day is a violation).
+- **HC-GD-9 — Range qualification (guard shifts only).** A person assigned to (or reserve for) a `WEEK_LONG`/`SINGLE_DAY` guard shift must be **range-qualified** — `last_range_qualification` within ~6 months. Guard duty is armed, so an expired/missing qualification blocks assignment until renewed. Does **not** apply to SUPPORT (unarmed) or ad-hoc. Surfaced to the soldier by the General Knowledge agent (see §7.5). *(HC-GD-8 = shift reserve differs from primary; see §6.B / GD-5.)*
 
 ### A. Keva (career) — annual quotas with carry-over
 Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
@@ -584,6 +601,38 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 - **SC-GD-1/2 (Balancing + tie-break)** apply — ad-hoc assignment prefers the eligible soldier with the lowest `shifts_burden_points` (ad-hoc is part of the shifts pool).
 
 ❓OPEN — Do ad-hoc missions apply to **Keva** as well as Sadir? If assigned to Keva, do they count toward any Keva quota, or sit entirely outside the quota system (burden-tracked only)? (Recommendation: assignable to both; for Keva, burden-tracked but *not* part of the 2/4 guard quotas.)
+
+---
+
+## 7.5 Pillar 5 — General Knowledge Agent
+
+A **read-only** help-desk / onboarding agent. It does **not** mutate state — it
+explains how the system works and walks personnel through branch procedures, by
+combining a **knowledge base** (static docs), **live DB reads** (structure, own
+details, readiness), and **served resources** (files, links).
+
+### What it answers
+1. **Branch intro** — what the CombatAI branch is and what the assistant can do. *(knowledge doc)*
+2. **Open a user to the closed networks** — the how-to for getting a workstation onto Civilian/Global/Secret/Top-Secret (the network-request flow). *(knowledge doc, links to §4)*
+3. **Pre-shift readiness ("debts")** — you must be **range-qualified** (shooting range every 6 months) to be fit for guard duty. The agent reports the person's current qualification status (from `last_range_qualification`, HC-GD-9), **serves the weapon-safety file**, and **links to the SmartBase safety test**. *(DB read + resources)*
+4. **Branch structure** — departments, teams, team leaders and their contact details (phone/email). *(DB read: OrgUnit + Personnel)*
+5. **My own details** — a person can review their own record (rank, population, team, contacts, duty flags, qualification, assignments) to check it's correct. *(DB read, self only)*
+6. **Information security** — what NOT to do in the office (e.g., connecting a wrong-classification PC to a port without permission). *(knowledge doc)*
+- **Plus: explain the mechanics** — fairness/balancing (Justice Table, burden pools, carryover), eligibility rules, equipment & computer lifecycles, the ticket flow — in plain language, including *"why was I / wasn't I picked for this shift?"*. *(knowledge doc + DB read)*
+
+### Knowledge base
+Static markdown under **`knowledge/`** (decided): `01-branch-intro`, `02-open-closed-networks`, `03-shift-readiness`, `04-infosec`, `05-fairness-explained`. The agent retrieves the relevant doc and explains it. Reference resources (the weapon-safety file, the **SmartBase** test URL `SMARTBASE_TEST_URL`) are served as links/attachments.
+
+### Capabilities (agent tools — all read-only)
+- `explain(topic)` — retrieve + explain a knowledge doc or a system mechanic.
+- `get_branch_structure(filter?)` — departments/teams, leaders, and contacts (OrgUnit + leader's phone/email).
+- `get_my_details(personnel)` — the caller's own record and a summary of their assignments/holdings (self only).
+- `get_shift_readiness(personnel)` — range-qualification status + the steps/file/SmartBase link to renew (HC-GD-9).
+- `get_resource(name)` — serve a file or link (weapon-safety instructions, SmartBase test).
+
+### Notes
+- **Read-only & privacy-scoped:** it never changes data; a regular member sees **their own** details, not others'. Branch structure (leaders/contacts) is shared info.
+- **Range qualification is enforced elsewhere:** this agent *surfaces* readiness; the **scheduler enforces HC-GD-9** (no guard assignment without a valid qualification). One rule, two touch-points.
 
 ---
 

@@ -35,8 +35,10 @@ from models.enums import (
     DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
+    OrgUnitKind,
     Population,
     PortStatus,
+    RANGE_QUAL_VALID_DAYS,
     Rank,
     Role,
     ShiftType,
@@ -77,6 +79,14 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
     for _ in range(num_personnel):
         population = random.choice([Population.KEVA, Population.SADIR])
         is_sadir = population == Population.SADIR
+        # Range qualification: most valid (<6mo), some expired, a few never done.
+        roll_q = random.random()
+        if roll_q < 0.1:
+            last_qual = None
+        elif roll_q < 0.25:  # expired (>183 days)
+            last_qual = date.today() - timedelta(days=random.randint(184, 400))
+        else:  # valid
+            last_qual = date.today() - timedelta(days=random.randint(0, 183))
         p = m.Personnel(
             personal_number=str(fake.unique.random_int(min=2000000, max=8999999)),
             full_name=fake.name(),
@@ -88,10 +98,31 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             # SUPPORT is Sadir-only and course-gated (default false).
             can_do_support=is_sadir and random.random() > 0.5,
             can_do_adhoc=random.random() > 0.1,
+            phone=fake.numerify("05#-###-####"),
+            email=fake.email(),
+            last_range_qualification=last_qual,
             active=random.random() > 0.05,
         )
         people.append(p)
         session.add(p)
+    session.flush()
+
+    # --- Org structure: departments + teams; assign each person to a team ---
+    dept_names = ["Network", "Logistics", "Operations"]
+    teams: list[m.OrgUnit] = []
+    for dname in dept_names:
+        dept = m.OrgUnit(name=f"{dname} Dept", kind=OrgUnitKind.DEPARTMENT)
+        session.add(dept)
+        session.flush()
+        for ti in range(1, 3):
+            leader = random.choice(people)
+            team = m.OrgUnit(name=f"{dname} Team {ti}", kind=OrgUnitKind.TEAM,
+                             parent_id=dept.id, leader_id=leader.id)
+            teams.append(team)
+            session.add(team)
+    session.flush()
+    for p in people:
+        p.team_id = random.choice(teams).id
     session.flush()
 
     # --- Manager roles: assign one of each among active people ---
@@ -336,6 +367,11 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
                 continue
             if shift_type == ShiftType.SUPPORT and not (p.population == Population.SADIR and p.can_do_support):
                 continue
+            # HC-GD-9: guard shifts (armed) require a valid range qualification
+            if shift_type in (ShiftType.WEEK_LONG, ShiftType.SINGLE_DAY):
+                q = p.last_range_qualification
+                if q is None or (date.today() - q).days > RANGE_QUAL_VALID_DAYS:
+                    continue
             # HC-GD-3: Keva annual quota
             if p.population == Population.KEVA:
                 if shift_type == ShiftType.WEEK_LONG and jt[p.id].week_long_count >= 2:

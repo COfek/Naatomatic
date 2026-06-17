@@ -120,6 +120,14 @@ class CalendarSubjectType(str, enum.Enum):
     EQUIPMENT_ITEM = "EQUIPMENT_ITEM"
 
 
+# --- Org structure (General Knowledge agent) ---
+class OrgUnitKind(str, enum.Enum):
+    DEPARTMENT = "DEPARTMENT"
+    TEAM = "TEAM"
+
+
 # --- Domain constants ---
 DEPOT_PERSONAL_NUMBER = "1234567"  # reserved holder for broken/formatting items
 FORMATTING_DURATION_DAYS = 14
+RANGE_QUAL_VALID_DAYS = 183  # shooting-range qualification valid ~6 months (HC-GD-9)
+SMARTBASE_TEST_URL = "https://smartbase.example.mil/weapon-safety-test"  # placeholder

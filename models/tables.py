@@ -36,6 +36,7 @@ from models.enums import (
     DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
+    OrgUnitKind,
     Population,
     PortStatus,
     Rank,
@@ -70,6 +71,13 @@ class Personnel(Base):
     can_do_support: Mapped[bool] = mapped_column(Boolean, default=False)
     can_do_adhoc: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Org membership + contact (General Knowledge agent: structure & own-details).
+    team_id: Mapped[int | None] = mapped_column(ForeignKey("org_unit.id"), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Shooting-range qualification — valid ~6 months; required for guard duty (HC-GD-9).
+    last_range_qualification: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -79,6 +87,20 @@ class Personnel(Base):
     date_blocks: Mapped[list["PersonnelDateBlock"]] = relationship(
         back_populates="personnel", cascade="all, delete-orphan"
     )
+
+
+class OrgUnit(Base):
+    """Branch structure — departments and teams (General Knowledge agent)."""
+
+    __tablename__ = "org_unit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    kind: Mapped[OrgUnitKind] = mapped_column(_enum(OrgUnitKind))
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("org_unit.id"), nullable=True)
+    leader_id: Mapped[int | None] = mapped_column(ForeignKey("personnel.id"), nullable=True)
+    # contact for the unit is the leader's phone/email (Personnel); optional override:
+    contact_note: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class PersonnelDateBlock(Base):

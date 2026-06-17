@@ -47,7 +47,12 @@ Naatomatic/
 │       ├── network.py
 │       ├── logistics.py
 │       ├── guard_duty.py
-│       └── adhoc.py
+│       ├── adhoc.py
+│       └── general_knowledge.py   read-only help desk (knowledge + DB reads)
+│
+├── knowledge/               static markdown the General Knowledge agent serves
+│   ├── 01-branch-intro.md   02-open-closed-networks.md  03-shift-readiness.md
+│   └── 04-infosec.md        05-fairness-explained.md
 │
 ├── services/                cross-cutting infrastructure
 │   ├── llm.py               LLM client wrapper (model ids, structured output, retries)
