@@ -176,9 +176,6 @@ OPEN ⇄ ON_HOLD → RESOLVED (terminal)
 ### Audit Log
 Append-only. Every mutating action writes one entry: `{ id, actor, action, entity_type, entity_id, before, after, timestamp }`.
 
-### Audit Log
-Append-only. Every mutating action writes one entry: `{ id, actor, action, entity_type, entity_id, before, after, timestamp }`.
-
 ---
 
 ## 4. Pillar 1 — Network Infrastructure Agent
@@ -202,8 +199,9 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 | `port_number` | int | |
 | `classification` | enum (derived) | Inherited from `switch.classification` (switches are single-class). Not stored separately. |
 | `status` | enum | `FREE` \| `OCCUPIED` \| `DISABLED` |
-| `wall_jack_id` | FK → WallJack (nullable) | physical mapping |
-| `allocated_to` | FK → Personnel (nullable) | |
+| `allocated_to` | FK → Personnel (nullable) | the person holding this port |
+
+> The physical jack↔port link is stored **once**, on `WallJack.port_id` (below) — not duplicated on Port. Given a port, its jack is found by reverse lookup. (Earlier drafts also listed `Port.wall_jack_id`; that duplicate is removed.)
 
 **WallJack**
 | Field | Type | Notes |
@@ -211,7 +209,7 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 | `id` | UUID | |
 | `label` | string | physical jack label on the wall |
 | `room` / `location` | string | |
-| `port_id` | FK → Port (nullable) | which port it patches to |
+| `port_id` | FK → Port (nullable, **unique**) | which port it patches to. Unique ⇒ **at most one wall jack per port**; null = unconnected jack. |
 
 > **Classification is derived, not stored.** A wall jack inherits the classification of the port it's patched to (`port.classification`, via `port_id`). We deliberately do *not* duplicate it on WallJack to avoid the two drifting out of sync — the port/switch owns the classification. An **unconnected** jack (`port_id = null`) has no classification; that's expected, not an error.
 
@@ -227,6 +225,8 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 ### Hard Constraints
 - **HC-NET-1 — One port per classification per person.** A given personnel member may hold at most one allocated port of each classification (so up to 4 total, one per level).
   - Enforced on `allocate_port`: reject if person already holds a port at that classification.
+  - Counts only **OCCUPIED** ports (a `DISABLED` port is not a live allocation).
+- **HC-NET-2 — Port status / allocation consistency.** An `OCCUPIED` port must have an `allocated_to`; a `FREE` or `DISABLED` port must not. (And, via the unique `WallJack.port_id`, a port has at most one wall jack.)
 
 **Mapping updates are resolution-driven.** The WallJack→Port mapping (and the port's `allocated_to`) is updated **only when the network manager resolves the connection ticket** — never automatically on ticket creation. Flow: requester opens a `NETWORK_REQUEST` → manager physically patches → manager resolves the ticket → resolution writes the WallJack/Port changes.
 
@@ -626,6 +626,19 @@ A structured review (design holes, code correctness, design↔code consistency, 
 - **R2-9 — Audit log & equipment transfers [LOW].** `AuditLog` and `EquipmentTransfer` are first-class in the design but nothing writes them yet. Wire them into the repository layer (every mutation → audit row; every sign/return → transfer row) when that layer is built.
 
 > Note: **SC-GD-1/2** (Sadir balancing + tie-break) are **soft** optimization rules, enforced at *assignment time* by the scheduler — they are correctly **not** in `verify.py` (which checks hard invariants only).
+
+### Network agent gaps (round-2 review)
+A focused review found the Network pillar thinner than Logistics. Fixed in this round: the duplicated Audit Log section; the `Port.wall_jack_id`/`WallJack.port_id` mismatch (now single, unique link); **HC-NET-2** (port status/allocation consistency) added and checked; HC-NET-1 now counts only OCCUPIED ports. Remaining:
+
+- **NET-1 — Network ticket payload [MED, decision].** A `NETWORK_REQUEST` doesn't capture *what* is asked — which wall-jack and which **desired classification**. A jack's classification is null until patched, so the requested level needs a home (recommend a typed `payload`, e.g. `{wall_jack_id, desired_classification}`).
+- **NET-2 — `DISABLED` port semantics [MED, decision].** When is a port DISABLED (faulty/reserved/decommissioned?), who sets it, and is it excluded from `count_free_ports`? Currently defined but never used.
+- **NET-3 — Release / disconnect + leaver cleanup [MED, decision].** No flow frees a port. When a person goes inactive, their ports should be released (analogous to equipment return). Define `release_port` semantics and the leaver rule.
+- **NET-4 — Port allocation history [LOW, decision].** Network has no movement trail (Logistics has EquipmentTransfer + AuditLog). Decide whether port allocate/release/re-patch should be logged (recommend: at least AuditLog rows).
+- **NET-5 — Switch/port decommission [LOW, decision].** No path to retire a switch or port. Probably fine to defer; confirm.
+- **NET-6 — Resolution-driven mapping unbuilt [build-time].** `resolved_port_id` and the allocate-on-resolve flow are specified (§3/§4) but unimplemented; the generator currently produces RESOLVED network tickets with no port link. Build with the Network tools (the `resolve_ticket` flow already covers the logic).
+- **NET-7 — Reporting unexercised [build-time].** `count_free_ports` (FREE vs DISABLED) and `Switch.total_ports`-vs-actual-rows reconciliation get covered when the Network tools/tests are built.
+
+These mirror features Logistics already has; most are **parity work for the build phase**, with a few small decisions (NET-1, NET-2, NET-3) worth settling first.
 
 ---
 

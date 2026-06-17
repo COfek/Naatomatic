@@ -170,7 +170,8 @@ class WallJack(Base):
     label: Mapped[str] = mapped_column(String, unique=True)
     room: Mapped[str | None] = mapped_column(String, nullable=True)
     # classification is derived via port_id -> port.switch.classification.
-    port_id: Mapped[int | None] = mapped_column(ForeignKey("port.id"), nullable=True)
+    # unique -> at most one wall jack per port (HC-NET-2); multiple NULLs allowed (unconnected jacks).
+    port_id: Mapped[int | None] = mapped_column(ForeignKey("port.id"), unique=True, nullable=True)
 
     port: Mapped[Port | None] = relationship(back_populates="wall_jack")
 
