@@ -9,6 +9,7 @@ distorted in paraphrase.
 
 | Doc | Covers | Source |
 |-----|--------|--------|
+| `00-glossary.md` | Hebrew ↔ system-identifier mapping (so the agent stays consistent) | bridge |
 | `01-branch-intro.md` | Branch 300 (CombatAI): general + structure (מדורים/צוותים) | branch content |
 | `02-open-closed-networks.md` | Opening a user to the classified networks (user form + network process) | נהלים §3.3 |
 | `03-shift-readiness.md` | Pre-shift readiness: range booklet + weapon-safety test (half-yearly) | נהלים §3.2 |
