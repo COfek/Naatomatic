@@ -146,7 +146,12 @@ Date-based unavailability — a person can't serve on specific dates (trip, appo
 | `status` | enum | `PENDING` \| `APPROVED` \| `REJECTED`. A soldier-submitted constraint starts `PENDING` and needs `SHIFT_MANAGER` approval; **only `APPROVED` blocks count.** |
 | `level` | enum | `CRITICAL` \| `HIGH` \| `MEDIUM` \| `LOW`. Priority tier (we store the level, **not** what the event is). `CRITICAL` (close-family wedding/funeral, medical) is **never overridden**; lower levels are soft. See SC-GD-5. |
 
-> **Approval workflow (decided).** A soldier adds a constraint with dates + reason + a proposed **level**; it is created `PENDING`. The `SHIFT_MANAGER` reviews and approves/rejects it, **confirming/adjusting the level** (the approval step guards against everyone marking their own constraint `CRITICAL`). Only `APPROVED` blocks take effect. A constraint that **overlaps a shift the soldier is already assigned to is rejected at submission** (they must do that shift or arrange a swap first) — see §6.
+> **Approval workflow (decided).** A soldier adds a constraint with dates + reason + a proposed **level**; it is created `PENDING`. The `SHIFT_MANAGER` reviews and approves/rejects it, **confirming/adjusting the level** (the approval step guards against everyone marking their own constraint `CRITICAL`). Only `APPROVED` blocks take effect. A constraint that **overlaps a shift the soldier is already assigned to is rejected at submission** (they must do that shift or arrange a swap first). At **approval** time the conflict is **re-checked** (GD-7): if a shift was assigned in those dates while the constraint sat pending, approval is **refused and the clash flagged** for the manager (resolve via swap/reassignment first) — never silently create a contradiction.
+>
+> **Submission windows (decided).** Constraints are **forward-looking** — declared *before* the affected period is planned, never for the period in progress:
+> - **Quarterly duties (SUPPORT + SINGLE_DAY):** a constraint must be submitted **before the quarter it falls in begins** — you cannot add one for the **current** (already-assigned) quarter.
+> - **WEEK_LONG (half-yearly):** constraints must be in **before that half-year begins** (file for the *next* half-year).
+> Once a period is locked/assigned, no new constraints for it — use a **swap** (op #2) or the manager's **emergency reassignment** (GD-5). `add_date_block` rejects a submission whose dates fall in an already-planned period.
 
 ### Rank (shared enum)
 Used for guard-duty eligibility (some shifts are restricted to a specific rank).
@@ -463,6 +468,7 @@ Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
 - **HC-GD-2 — 4 `SINGLE_DAY` shifts per year** (day and night count the same — 1 day = 1 night).
 - The two quotas are tracked **independently** (single-day shifts do not offset the week-long requirement, or vice-versa).
 - SUPPORT shifts do not apply to Keva at all — they are **Sadir-only** (see §6.B).
+- **Year-boundary (GD-6):** a shift straddling Dec→Jan counts toward the calendar year of its **`start_date`** (e.g. Dec 30 → Jan 5 counts in the old year).
 
 - **HC-GD-3 — Don't over-assign under normal operation.** The agent will not voluntarily assign a Keva member beyond their *effective* annual requirement for a shift type. Ad-hoc missions do **not** let a Keva member skip these guard quotas — the 2/4 still stand.
 
@@ -746,8 +752,9 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 - **GD-3 — Swap nuances [resolved].** A swap must be **same population AND same shift type** (week↔week, day↔day, support↔support; never Keva↔Sadir, never cross-type), then the usual eligibility/overlap/quota checks. Also decided: Sadir burden is tracked in **two separate pools** — **shifts** (guard + ad-hoc) and **SUPPORT** — balanced independently; see §6 "Burden points — two separate pools." See §6 op #2.
 - **GD-4 — Unfillable shift [resolved].** A truly unfillable slot (no eligible/available person — near-impossible with ~100 soldiers) stays `OPEN` and is **flagged/escalated to the `SHIFT_MANAGER`**; never auto-fabricated. Ordinary single-person unavailability is handled by **SC-GD-4 cross-quarter compensation**: someone covers now, and the cumulative pools make the unavailable person do one extra next quarter while the coverer is compensated with one fewer. See §6.B.
 - **GD-5 — Emergency reassignment & cancellation [open].** Beyond a manager swap, no flow for a last-minute drop-out (sick) or cancelling a no-longer-needed shift (`CANCELLED` exists but unused).
-- **GD-6 — Year-boundary shift [open].** Which calendar year's quota a WEEK_LONG spanning Dec→Jan counts toward (affects Keva counts + year reset).
-- **GD-7 — Approval-time conflict re-check [open].** A `PENDING` constraint approved after a conflicting assignment was made (pending didn't block) must be re-checked at approval and rejected/flagged.
+- **GD-6 — Year-boundary shift [resolved].** A shift straddling Dec→Jan counts toward the year of its **`start_date`**. See §6.A.
+- **GD-7 — Approval-time conflict re-check [resolved].** Constraint **approval** re-checks for conflicts; if a shift was assigned in those dates while pending, the approval is **refused and flagged** (resolve via swap/reassignment). Largely pre-empted by the **submission-window rule** (constraints come in before the period is planned). See §3.
+- **GD-8 — Constraint submission windows [resolved].** Constraints are forward-looking: quarterly duties (SUPPORT/SINGLE_DAY) must be submitted **before the quarter begins**; WEEK_LONG **before the half-year begins**. No constraints for a period already planned (use swap / emergency reassignment). See §3.
 - **Build-time:** carryover/year-reset code (R2-6), `auto_assign`/Planner, the tools, AuditLog writes for assignments.
 
 ---
