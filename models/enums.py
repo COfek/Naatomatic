@@ -130,4 +130,6 @@ class OrgUnitKind(str, enum.Enum):
 DEPOT_PERSONAL_NUMBER = "1234567"  # reserved holder for broken/formatting items
 FORMATTING_DURATION_DAYS = 14
 RANGE_QUAL_VALID_DAYS = 183  # shooting-range qualification valid ~6 months (HC-GD-9)
-SMARTBASE_TEST_URL = "https://smartbase.example.mil/weapon-safety-test"  # placeholder
+SMARTBASE_TEST_URL = "https://smartbase.digital.idf.il/#/tests"          # weapon-safety tests
+SMARTBASE_WEAPON_FORM_URL = "https://smartbase.digital.idf.il/#/weapon_form"  # weapon-carry request
+KITBAG_URL = "https://kitbag.digital.idf.il/"  # equipment custody hand-over/acceptance

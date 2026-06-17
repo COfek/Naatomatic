@@ -20,7 +20,7 @@ when speaking to users.
 | סודי | `SECRET` |
 | סודי ביותר | `TOP_SECRET` |
 
-> ⚠️ **To confirm:** the infosec doc (`04-infosec`) references **`שמור`** ("restricted") as a level — "בסיווג מעל שמור (שמור, סודי, סודי ביותר)". The system enum has no `שמור`. Decide whether `שמור` is a real 5th level to add, or maps to an existing one.
+> **Decided:** there is **no separate `שמור` level** for ports/computers/switches — the four levels above are the complete set. (The word "שמור" in the infosec text is used loosely for "classified"; it is not a distinct system classification.)
 
 ## Ranks
 | Hebrew | System ID |
@@ -36,7 +36,7 @@ when speaking to users.
 |--------|-----------|-------|
 | שמירה שבועית | `WEEK_LONG` | week-long guard shift (7 pts) |
 | שמירה יומית / לילית | `SINGLE_DAY` | single day or night (1 pt; day = night) |
-| תורנות מענה / כוננות תמיכה | `SUPPORT` | 24/7 customer-ticket standby; Sadir-only *(confirm the official Hebrew term)* |
+| תורנות מענה / כוננות תמיכה | `SUPPORT` | 24/7 customer-ticket standby; Sadir-only |
 | משימה מתפרצת | `AdHocMission` | sudden mission (ceremony, memorial, volunteering) |
 
 ## Roles (permissions)
@@ -46,7 +46,7 @@ when speaking to users.
 | אחראי לוגיסטיקה | `LOGISTICS_OFFICER` |
 | אחראי תורנויות (קבע/סדיר) + אחראי משימות מתפרצות | `SHIFT_MANAGER` |
 
-> ⚠️ **To confirm:** the branch role list (`06-roles-and-responsibilities`) is richer than the 3 system roles — separate `אחראי תורנויות קבע`, `אחראי תורנויות סדיר`, `אחראי משימות מתפרצות`, plus `אחראי בטחון מידע`, `אחראי חינוך`, etc. Decide whether to split/add system roles or keep the 3 broad ones.
+> **Decided:** keep the **3 system roles** for now. The branch's fuller role list (`06-roles-and-responsibilities`) is informational (the General Knowledge agent can list it); it does not change the permission model.
 
 ## Network
 | Hebrew | System term |

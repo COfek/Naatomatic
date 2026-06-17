@@ -216,10 +216,16 @@ OPEN ⇄ ON_HOLD → RESOLVED (terminal)
 0. **Identify the ticket by id.** The manager resolves *by ticket id* (e.g. "resolve ticket 42"). If the id has **no exact match**, the agent does **not** fail or guess — it lists the **closest open tickets** and asks the manager to pick (see §2 "Fuzzy reference resolution").
 1. **Validate** the intended outcome against hard rules (e.g., HC-LOG-2 before signing a computer; HC-NET-1 before allocating a port). Reject if it would violate one — the DB is left unchanged.
 2. **Apply the fulfilment:**
-   - *EQUIPMENT_REQUEST* → sign the chosen item to the requester (`signed_to = requester`), clear `reserved_for`, set status (`READY_TO_USE → IN_USE`); set `resolved_item_catalog`. The item is no longer held by the depot (`1234567`).
+   - *EQUIPMENT_REQUEST* → sign the chosen item to the requester (`signed_to = requester`), clear `reserved_for`, set status (`READY_TO_USE → IN_USE`); set `resolved_item_catalog`. The item is no longer held by the depot (`1234567`). Set **`handover_pending = true`** (the physical custody transfer isn't done yet — see Kitbag step).
    - *NETWORK_REQUEST* → write the WallJack→Port mapping, set the port `CONNECTED` / `allocated_to = requester`; set `resolved_port_id`.
 3. **Close the ticket** (`status = RESOLVED`, stamp `resolved_at`).
 4. **Record** an `EquipmentTransfer` (for equipment) and an `AuditLog` entry (always).
+
+**Kitbag hand-over (equipment, decided).** Resolving the ticket records the assignment in Naatomatic, but the **official custody transfer happens in Kitbag** (`KITBAG_URL`) and is a **two-sided** action the system can't perform itself:
+1. On resolve, the agent **instructs the manager** to pass the item to the recipient in Kitbag (serves the link).
+2. The recipient must **accept** the item in Kitbag, then **confirm in the chat** ("I accepted CAT-xxxx in Kitbag").
+3. Until the recipient confirms, the item stays **`handover_pending = true`**; the General Knowledge / logistics agent shows the recipient *"you have an item pending acceptance in Kitbag"* (with the link) in their self-view, and reminds them. On confirmation → `handover_pending = false`.
+> The system **can't verify Kitbag directly** (external app), so completion is by the recipient's attestation in chat; what it *can* do is track the pending state, surface it, and keep reminding until acknowledged.
 
 > This single tool answers Issue R2-7 (request↔fulfilment link), the "depot must be unassigned on resolution" requirement, and feeds R2-9 (transfer/audit rows). A future GUI/app, if ever added, would call the same tool — the logic is interface-independent.
 
@@ -323,6 +329,7 @@ The end-to-end flow for connecting a workstation — the network twin of the Log
 | `classification` | enum (nullable) | computers only |
 | `signed_to` | FK → Personnel (nullable) | current **custody** (often the depot) |
 | `reserved_for` | FK → Personnel (nullable) | **destination** on return — who the item is promised to while it sits at the depot (e.g. during formatting). Distinct from `signed_to`. |
+| `handover_pending` | bool | true after a ticket assigns the item, until the recipient **accepts it in Kitbag** (see resolution flow). |
 | `created_at` / `updated_at` | timestamp | |
 
 > **Why `reserved_for` is separate from `signed_to`.** When a computer is sent to formatting on behalf of a specific person, custody passes to the depot (`signed_to = 1234567`) but the machine is still earmarked for that person (`reserved_for = them`). On pickup it is signed back to `reserved_for` and the reservation is cleared. Keeping the two facts separate means "who holds it now" and "who it's coming back to" never overwrite each other. `reserved_for` is null for items not earmarked for anyone (e.g. a broken item with no pending owner).
@@ -600,7 +607,7 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 - **HC-GD-0, HC-GD-5, HC-GD-6 (Eligibility)** apply — population/rank match, date availability, and the `can_do_adhoc` flag, same pattern as shifts.
 - **SC-GD-1/2 (Balancing + tie-break)** apply — ad-hoc assignment prefers the eligible soldier with the lowest `shifts_burden_points` (ad-hoc is part of the shifts pool).
 
-❓OPEN — Do ad-hoc missions apply to **Keva** as well as Sadir? If assigned to Keva, do they count toward any Keva quota, or sit entirely outside the quota system (burden-tracked only)? (Recommendation: assignable to both; for Keva, burden-tracked but *not* part of the 2/4 guard quotas.)
+**Ad-hoc & Keva (decided):** ad-hoc missions *are* assignable to Keva (occasionally), but for Keva they are **burden-tracked only** (in the shifts pool, used as the ad-hoc tie-break) and sit **entirely outside** the 2/4 guard quota — never counting toward or reducing it. See §6.A "Ad-hoc for Keva."
 
 ---
 
@@ -624,14 +631,14 @@ details, readiness), and **served resources** (files, links).
 Static markdown under **`knowledge/`** (real branch content): `01-branch-intro` (Branch 300 general + structure), `02-open-closed-networks` (user form + network process), `03-shift-readiness` (range booklet + weapon-safety test, half-yearly), `04-infosec` (נהלי בטחון מידע), `05-fairness-explained` (derived from the design), `06-roles-and-responsibilities` (branch role-holders), `07-site-and-general-procedures` (Elbit site security + general procedures). Policy text is kept verbatim (Hebrew). The agent retrieves the relevant doc and explains it (HE/EN). Reference resources (the weapon-safety file, the **SmartBase** test URL `SMARTBASE_TEST_URL`) are served as links/attachments — both still placeholders.
 
 ### Capabilities (agent tools — all read-only)
-- `explain(topic)` — retrieve + explain a knowledge doc or a system mechanic.
-- `get_branch_structure(filter?)` — departments/teams, leaders, and contacts (OrgUnit + leader's phone/email).
-- `get_my_details(personnel)` — the caller's own record and a summary of their assignments/holdings (self only).
-- `get_shift_readiness(personnel)` — range-qualification status + the steps/file/SmartBase link to renew (HC-GD-9).
-- `get_resource(name)` — serve a file or link (weapon-safety instructions, SmartBase test).
+- `explain(topic)` — retrieve + explain **any** knowledge doc in `knowledge/` (intro, open-networks, shift-readiness, infosec, fairness, roles, site procedures, glossary) **or** a system mechanic. If a topic isn't covered, it says so (no fabrication).
+- `get_branch_structure(filter?)` — the department→team tree with leaders and their contacts (OrgUnit + leader's phone/email), returned as a **nicely-formatted org tree** (and may render a visual). Shared info — not personal.
+- `get_my_details(personnel)` — a **comprehensive self-view** (self only): personal details (rank, population, team, contacts), duty flags, **range-qualification status**, current equipment (incl. any `handover_pending`) and **transfer history**, network ports/settings, **past and upcoming** shifts / SUPPORT / ad-hoc, Justice-Table standing, and active date-blocks. Essentially "everything about me."
+- `get_shift_readiness(personnel)` — range-qualification status + steps/file/SmartBase links to renew (HC-GD-9).
+- `get_resource(name)` — serve a file or link (weapon-carry file, SmartBase tests `SMARTBASE_TEST_URL` / weapon-form `SMARTBASE_WEAPON_FORM_URL`, Kitbag `KITBAG_URL`).
 
 ### Notes
-- **Read-only & privacy-scoped:** it never changes data; a regular member sees **their own** details, not others'. Branch structure (leaders/contacts) is shared info.
+- **Read-only & privacy-scoped (strict):** it never changes data. A member can ask **anything about themselves** — details, equipment + history, past/future shifts, network settings, readiness — but **only about themselves**; it must refuse requests for another person's private data. Branch **structure** (teams, leaders, contacts) is the one shared, non-personal exception.
 - **Range qualification is enforced elsewhere:** this agent *surfaces* readiness; the **scheduler enforces HC-GD-9** (no guard assignment without a valid qualification). One rule, two touch-points.
 
 ---

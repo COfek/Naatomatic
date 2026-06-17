@@ -227,6 +227,9 @@ class EquipmentItem(Base):
     # Who the item is promised to while it is at the depot (e.g. during formatting).
     # signed_to = custody (often the depot); reserved_for = destination on return.
     reserved_for: Mapped[int | None] = mapped_column(ForeignKey("personnel.id"), nullable=True)
+    # After a ticket is resolved, the physical hand-over is completed in Kitbag
+    # (manager passes -> recipient accepts). True until the recipient accepts.
+    handover_pending: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

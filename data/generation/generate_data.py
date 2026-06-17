@@ -107,17 +107,20 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.add(p)
     session.flush()
 
-    # --- Org structure: departments + teams; assign each person to a team ---
-    dept_names = ["Network", "Logistics", "Operations"]
+    # --- Org structure: the real Branch-300 departments + teams (random leaders) ---
+    dept_struct = {
+        "מדור 1 - הגנת גבולות": ["צוות פיקסל", "צוות טרמינוס", "צוות Nightwatch"],
+        "מדור 2 - בינה מבצעית לתמרון": ["צוות אקינטור", "צוות אקסיס", "צוות פלאש", "צוות פולאריס"],
+        "מדור 3 - תשתיות": ["צוות מריו", "צוות סוניק", "צוות אטמוס"],
+    }
     teams: list[m.OrgUnit] = []
-    for dname in dept_names:
-        dept = m.OrgUnit(name=f"{dname} Dept", kind=OrgUnitKind.DEPARTMENT)
+    for dname, team_names in dept_struct.items():
+        dept = m.OrgUnit(name=dname, kind=OrgUnitKind.DEPARTMENT, leader_id=random.choice(people).id)
         session.add(dept)
         session.flush()
-        for ti in range(1, 3):
-            leader = random.choice(people)
-            team = m.OrgUnit(name=f"{dname} Team {ti}", kind=OrgUnitKind.TEAM,
-                             parent_id=dept.id, leader_id=leader.id)
+        for tname in team_names:
+            team = m.OrgUnit(name=tname, kind=OrgUnitKind.TEAM,
+                             parent_id=dept.id, leader_id=random.choice(people).id)
             teams.append(team)
             session.add(team)
     session.flush()
