@@ -308,6 +308,17 @@ def check_hc_gd_7(session: Session) -> list[str]:
     return violations
 
 
+def check_hc_gd_8(session: Session) -> list[str]:
+    """HC-GD-8: a shift's reserve (if set) is a different person from the primary."""
+    violations = []
+    for s in session.scalars(
+        select(t.Shift).where(t.Shift.reserve_id.is_not(None))
+    ).all():
+        if s.reserve_id == s.assigned_to:
+            violations.append(f"shift id={s.id}: reserve == primary (person {s.assigned_to})")
+    return violations
+
+
 # --------------------------------------------------------------------------- #
 # Registry + runner
 # --------------------------------------------------------------------------- #
@@ -328,6 +339,7 @@ ALL_CHECKS: list[Check] = [
     Check("HC-GD-5", "Assignee not date-blocked on the dates", check_hc_gd_5),
     Check("HC-GD-6", "Assignee has duty-type flag (SUPPORT=>Sadir)", check_hc_gd_6),
     Check("HC-GD-7", "No overlapping assignments per person", check_hc_gd_7),
+    Check("HC-GD-8", "Shift reserve differs from the primary", check_hc_gd_8),
     Check("DEPOT", "Broken/formatting -> depot; in-use -> real person", check_depot),
     Check("STATUS", "Equipment status valid for its kind", check_status),
 ]

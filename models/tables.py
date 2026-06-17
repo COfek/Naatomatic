@@ -236,6 +236,8 @@ class Shift(Base):
     eligible_population: Mapped[Population | None] = mapped_column(_enum(Population), nullable=True)
     required_rank: Mapped[Rank | None] = mapped_column(_enum(Rank), nullable=True)
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("personnel.id"), nullable=True)
+    # Backup who steps in on a last-minute drop-out (GD-5); also eligible/available.
+    reserve_id: Mapped[int | None] = mapped_column(ForeignKey("personnel.id"), nullable=True)
     status: Mapped[AssignmentStatus] = mapped_column(
         _enum(AssignmentStatus), default=AssignmentStatus.OPEN
     )

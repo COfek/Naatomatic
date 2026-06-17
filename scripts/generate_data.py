@@ -320,7 +320,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
     def is_busy(person_id: int, start: date, end: date) -> bool:
         return any(s <= end and start <= e for s, e in assigned_intervals[person_id])
 
-    def eligible_for(shift_type: ShiftType, population, rank, start, end) -> m.Personnel | None:
+    def eligible_ranked(shift_type: ShiftType, population, rank, start, end) -> list:
         pool = []
         for p in real_people:
             if not p.active:
@@ -349,14 +349,12 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             if is_busy(p.id, start, end):
                 continue
             pool.append(p)
-        if not pool:
-            return None
-        # SC-GD-1: prefer the lowest burden in the pool matching the duty kind.
+        # SC-GD-1: rank by the lowest burden in the pool matching the duty kind.
         if shift_type == ShiftType.SUPPORT:
             pool.sort(key=lambda x: jt[x.id].support_burden_points)
         else:  # WEEK_LONG / SINGLE_DAY (and ad-hoc) share the shifts pool
             pool.sort(key=lambda x: jt[x.id].shifts_burden_points)
-        return pool[0]
+        return pool  # [0] = primary, [1] = reserve (GD-5)
 
     # --- Shifts (assigned to lowest-burden eligible person) ---
     num_shifts = num_personnel * 2
@@ -379,7 +377,9 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             random.choice([None, Population.KEVA, Population.SADIR])
         )
         rank = random.choice([None, None, None, *list(Rank)])
-        holder = eligible_for(stype, population, rank, start, end)
+        ranked = eligible_ranked(stype, population, rank, start, end)
+        holder = ranked[0] if ranked else None
+        reserve = ranked[1] if len(ranked) > 1 else None  # GD-5 backup
         shift = m.Shift(
             type=stype,
             time_of_day=tod,
@@ -388,6 +388,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             eligible_population=population,
             required_rank=rank,
             assigned_to=holder.id if holder else None,
+            reserve_id=reserve.id if reserve else None,
             status=AssignmentStatus.ASSIGNED if holder else AssignmentStatus.OPEN,
         )
         session.add(shift)

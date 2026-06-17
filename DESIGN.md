@@ -431,7 +431,8 @@ Two distinct scheduling models sharing the **Justice Table**.
 | `start_date` / `end_date` | date | |
 | `eligible_population` | enum (nullable) | `KEVA` \| `SADIR`; null = either |
 | `required_rank` | enum (nullable) | Rank; null = any rank |
-| `assigned_to` | FK → Personnel (nullable) | |
+| `assigned_to` | FK → Personnel (nullable) | the **primary** |
+| `reserve_id` | FK → Personnel (nullable) | the **reserve** (backup) — steps in on a last-minute drop-out (GD-5) |
 | `status` | enum | `OPEN` \| `ASSIGNED` \| `COMPLETED` \| `CANCELLED` |
 
 **Shift eligibility:** a person is eligible only if they (1) match every non-null targeting field (population, rank — HC-GD-0), (2) have the duty-type flag for this shift's `type` set true (HC-GD-6 — e.g., SUPPORT requires `can_do_support`), and (3) are not date-blocked on the shift's dates (HC-GD-5). The balancing/quota logic then operates within that eligible pool.
@@ -512,6 +513,13 @@ Shift **dates are an input**, not something the system invents — the branch is
 - **Eligible pool** = passes HC-GD-0 (population/rank), HC-GD-5 (not date-blocked on the shift dates), HC-GD-6 (has the duty flag), HC-GD-7 (no overlapping assignment).
 - **Within that pool**, choose by the population's model: **Keva** must still owe this shift type (effective requirement = base − carryover, HC-GD-3/4 — don't exceed it) and are **balanced among themselves** — pick the eligible Keva who has done the fewest of that type (SC-GD-3), so the load spreads evenly; **Sadir** = lowest points **in the matching pool** for the duty kind (SC-GD-1). Tie-break in both cases: longest time since last assignment of that kind (SC-GD-2).
 - A batch is assigned **greedily and sequentially**, updating each person's burden as you go, so the whole list comes out balanced (this is exactly what the data generator already does). The manager can `suggest_assignment` (preview) or `assign_shift` (commit), and override a suggestion manually (still constraint-validated).
+- **Every shift also gets a `reserve`** — the **next-best eligible** person (a different, available individual). The reserve is the backup for GD-5 below.
+
+### Reserve & last-minute drop-out (decided — GD-5)
+- **Reserve:** each shift carries a **primary** (`assigned_to`) and a **reserve** (`reserve_id`). The reserve must be eligible and available too (HC-GD-0/5/6/7), and is **a different person** from the primary (HC-GD-8). Being on standby earns no burden by itself.
+- **Drop-out:** if the primary can't serve at the last minute (sick, etc.), the **reserve steps in** — the shift is reassigned to the reserve and the swap-in is recorded (audit).
+- **Compensation (automatic):** the reserve (who actually served) gets the shift's **burden points**; the original (who didn't) gets none. Because the pools are cumulative (SC-GD-4), next rotation the **original is picked more** (lower burden) and the **reserve is eased** (higher burden) — i.e., the original repays the reserve. No separate debt record needed; the burden balancing *is* the compensation.
+- **Cancellation:** a shift no longer needed → `status = CANCELLED`; no burden accrues, and both primary and reserve are freed.
 
 ### Operations (use cases)
 The Guard Duty agent supports these five operations:
@@ -532,6 +540,8 @@ The Guard Duty agent supports these five operations:
 - `add_date_block(start, end, reason, level)` — a soldier submits a constraint with a proposed level (→ `PENDING`; rejected if it overlaps their own existing assignment).
 - `review_date_blocks()` / `approve_date_block(id)` / `reject_date_block(id)` — `SHIFT_MANAGER` only: act on pending constraints.
 - `list_my_shifts(include_past?)` — a soldier's own assignments, upcoming and past (op #4).
+- `report_unavailable(shift)` / `activate_reserve(shift)` — last-minute drop-out: reassign the shift to its reserve, record the swap-in (GD-5).
+- `cancel_shift(shift)` — `SHIFT_MANAGER`: mark a shift `CANCELLED`, free primary + reserve.
 - `generate_support_roster(quarter)` — `SHIFT_MANAGER` / maintenance: tile a quarter into daily + weekend SUPPORT slots and assign ahead by fairness (GD-2). Idempotent.
 - `check_support_coverage(date_range)` — report any gap (uncovered day) or overlap (two people) in the SUPPORT roster.
 - `get_justice_table(filter: population?)` — fairness standings (transparency).
@@ -751,7 +761,7 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 - **GD-2 — SUPPORT coverage completeness [resolved].** A **quarterly maintenance step** (§14) generates the upcoming quarter's SUPPORT slots (tiling every day; weekday singles + Fri–Sat weekend pairs) and assigns them ahead by Justice-Table fairness; idempotent. A `check_support_coverage` safety-net flags gaps/overlaps (e.g. after a cancellation). See §6 SUPPORT note.
 - **GD-3 — Swap nuances [resolved].** A swap must be **same population AND same shift type** (week↔week, day↔day, support↔support; never Keva↔Sadir, never cross-type), then the usual eligibility/overlap/quota checks. Also decided: Sadir burden is tracked in **two separate pools** — **shifts** (guard + ad-hoc) and **SUPPORT** — balanced independently; see §6 "Burden points — two separate pools." See §6 op #2.
 - **GD-4 — Unfillable shift [resolved].** A truly unfillable slot (no eligible/available person — near-impossible with ~100 soldiers) stays `OPEN` and is **flagged/escalated to the `SHIFT_MANAGER`**; never auto-fabricated. Ordinary single-person unavailability is handled by **SC-GD-4 cross-quarter compensation**: someone covers now, and the cumulative pools make the unavailable person do one extra next quarter while the coverer is compensated with one fewer. See §6.B.
-- **GD-5 — Emergency reassignment & cancellation [open].** Beyond a manager swap, no flow for a last-minute drop-out (sick) or cancelling a no-longer-needed shift (`CANCELLED` exists but unused).
+- **GD-5 — Emergency reassignment & cancellation [resolved].** Every shift has a **reserve** (`reserve_id`, HC-GD-8 = distinct from primary). On a last-minute drop-out the reserve steps in; the reserve gets the burden and the original gets none, so SC-GD-4 makes the original repay (does more) and eases the reserve (does less) next rotation — the compensation is automatic. A no-longer-needed shift is `CANCELLED` (frees both). See §6 "Reserve & last-minute drop-out."
 - **GD-6 — Year-boundary shift [resolved].** A shift straddling Dec→Jan counts toward the year of its **`start_date`**. See §6.A.
 - **GD-7 — Approval-time conflict re-check [resolved].** Constraint **approval** re-checks for conflicts; if a shift was assigned in those dates while pending, the approval is **refused and flagged** (resolve via swap/reassignment). Largely pre-empted by the **submission-window rule** (constraints come in before the period is planned). See §3.
 - **GD-8 — Constraint submission windows [resolved].** Constraints are forward-looking: quarterly duties (SUPPORT/SINGLE_DAY) must be submitted **before the quarter begins**; WEEK_LONG **before the half-year begins**. No constraints for a period already planned (use swap / emergency reassignment). See §3.
