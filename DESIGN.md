@@ -658,11 +658,11 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 - **NET-2 — Port states [MED]. ✓ RESOLVED.** A port is **binary**: `CONNECTED` or `DISCONNECTED`. The `DISABLED` state is removed — there is no "out of order" port status. `count_free_ports` simply counts `DISCONNECTED` ports.
 - **NET-3 — Release / disconnect + leaver cleanup [MED]. ✓ RESOLVED.** `release_port` frees a port (`CONNECTED → DISCONNECTED`, clear `allocated_to`, unpatch the jack). On deactivation (`active = false`), leaver cleanup auto-releases all the person's ports **and** returns their signed equipment to inventory, with a daily maintenance sweep as backstop (see §4 + §14). *(Build-time: the actual release/return code lands with the tools/repository.)*
 - **NET-4 — Port allocation history [LOW]. ✓ RESOLVED.** Port allocate/release/re-patch are logged as `AuditLog` rows (`entity_type="port"`); no separate port-transfer table — query AuditLog for a port's trail. See §4 "Port history".
-- **NET-5 — Switch/port decommission [LOW, decision].** No path to retire a switch or port. Probably fine to defer; confirm.
+- **NET-5 — Switch/port decommission [LOW]. ✓ DEFERRED (decided).** No retire/decommission path for switches or ports. They are slow-moving infrastructure; removal is a rare admin act handled by direct data edit if it ever happens. Revisit only if it becomes a real operational need.
 - **NET-6 — Resolution-driven mapping unbuilt [build-time].** `resolved_port_id` and the allocate-on-resolve flow are specified (§3/§4) but unimplemented; the generator currently produces RESOLVED network tickets with no port link. Build with the Network tools (the `resolve_ticket` flow already covers the logic).
 - **NET-7 — Reporting unexercised [build-time].** `count_free_ports` (count of `DISCONNECTED` ports) and `Switch.total_ports`-vs-actual-rows reconciliation get covered when the Network tools/tests are built.
 
-These mirror features Logistics already has; most are **parity work for the build phase**, with a few small decisions (NET-1, NET-2, NET-3) worth settling first.
+**All Network design decisions are now settled** (NET-1…NET-5). What remains (NET-6, NET-7) is **build-time parity work** that lands when the Network tools/repository/tests are built — same status as Logistics' pending tools.
 
 ---
 
