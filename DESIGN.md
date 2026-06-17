@@ -252,6 +252,8 @@ payload = { "wall_jack_id": <id>, "desired_classification": "CIVILIAN|GLOBAL|SEC
 
 **Leaver cleanup (decided).** When a person is deactivated (`active = false`), their holdings are automatically reclaimed in one step: **all their `CONNECTED` ports are released** (above) **and all their signed equipment is returned** to inventory (computers → `READY_TO_USE`, monitors unsigned; `signed_to` cleared, recorded as transfers). This runs as part of the deactivation action, with a **daily maintenance sweep** (§14) as a backstop so no inactive person is left holding ports or equipment.
 
+**Port history (decided — NET-4).** Every port allocate / release / re-patch is recorded as an `AuditLog` row (`entity_type = "port"`, who/when/before/after). There is **no** separate port-transfer table — the movement trail is obtained by querying `AuditLog` for that port. (Equipment keeps its dedicated `EquipmentTransfer` table; ports rely on the generic audit log, which is enough for their simpler allocate/release lifecycle.)
+
 ---
 
 ## 5. Pillar 2 — Logistics Operations Agent
@@ -655,7 +657,7 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 - **NET-1 — Network ticket payload [MED]. ✓ RESOLVED.** A `NETWORK_REQUEST` carries `payload = {wall_jack_id, desired_classification}` (the soldier specifies the jack and the level they want). See §4 "Network request payload". The generator now populates it.
 - **NET-2 — Port states [MED]. ✓ RESOLVED.** A port is **binary**: `CONNECTED` or `DISCONNECTED`. The `DISABLED` state is removed — there is no "out of order" port status. `count_free_ports` simply counts `DISCONNECTED` ports.
 - **NET-3 — Release / disconnect + leaver cleanup [MED]. ✓ RESOLVED.** `release_port` frees a port (`CONNECTED → DISCONNECTED`, clear `allocated_to`, unpatch the jack). On deactivation (`active = false`), leaver cleanup auto-releases all the person's ports **and** returns their signed equipment to inventory, with a daily maintenance sweep as backstop (see §4 + §14). *(Build-time: the actual release/return code lands with the tools/repository.)*
-- **NET-4 — Port allocation history [LOW, decision].** Network has no movement trail (Logistics has EquipmentTransfer + AuditLog). Decide whether port allocate/release/re-patch should be logged (recommend: at least AuditLog rows).
+- **NET-4 — Port allocation history [LOW]. ✓ RESOLVED.** Port allocate/release/re-patch are logged as `AuditLog` rows (`entity_type="port"`); no separate port-transfer table — query AuditLog for a port's trail. See §4 "Port history".
 - **NET-5 — Switch/port decommission [LOW, decision].** No path to retire a switch or port. Probably fine to defer; confirm.
 - **NET-6 — Resolution-driven mapping unbuilt [build-time].** `resolved_port_id` and the allocate-on-resolve flow are specified (§3/§4) but unimplemented; the generator currently produces RESOLVED network tickets with no port link. Build with the Network tools (the `resolve_ticket` flow already covers the logic).
 - **NET-7 — Reporting unexercised [build-time].** `count_free_ports` (count of `DISCONNECTED` ports) and `Switch.total_ports`-vs-actual-rows reconciliation get covered when the Network tools/tests are built.
