@@ -434,7 +434,7 @@ Two distinct scheduling models sharing the **Justice Table**.
 | `personnel_id` | FK | |
 | `week_long_count` | int | Keva: WEEK_LONG shifts done this calendar year |
 | `single_day_count` | int | Keva: SINGLE_DAY shifts done this calendar year |
-| `week_long_carryover` | int (signed) | Keva: WEEK_LONG carryover from prior year. **Positive** = surplus (did extra) → reduces this year's requirement; **negative** = shortfall (did fewer) → increases it. See HC-GD-4. |
+| `week_long_carryover` | int (signed) | Keva: WEEK_LONG carryover = cumulative (did − fair share). **Positive** = did more than peers → owes fewer next year; **negative** = did fewer → owes more. See HC-GD-4. |
 | `single_day_carryover` | int (signed) | Keva: SINGLE_DAY carryover, same signed convention |
 | `total_burden_points` | decimal | Balancing currency (Sadir always; Keva for ad-hoc tie-breaks) — see **Burden Points** scale below |
 | `period_start` | date | quota window anchor (Jan 1 of the calendar year) |
@@ -464,14 +464,13 @@ Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
 
 - **HC-GD-3 — Don't over-assign under normal operation.** The agent will not voluntarily assign a Keva member beyond their *effective* annual requirement for a shift type. Ad-hoc missions do **not** let a Keva member skip these guard quotas — the 2/4 still stand.
 
-- **HC-GD-4 — Carryover (bidirectional).** At year end, the difference between what a Keva member did and their quota carries into next year, so the burden stays fair across year boundaries.
-  - `carryover = done − quota` (per shift type), stored in `week_long_carryover` / `single_day_carryover`.
-  - **Effective requirement next year = base quota − carryover.**
-  - *Over-served:* did 3 week-long (quota 2) → carryover `+1` → next year owe **1**.
-  - *Under-served:* did 1 week-long (quota 2) → carryover `−1` → next year owe **3** (the missed one rolls forward — "do one extra"). (This replaces the earlier "waive" decision.)
-  - The Justice Table uses this when choosing who serves: someone who over-served is lower priority; someone who under-served is higher priority until they catch up.
+- **HC-GD-4 — Carryover (bidirectional, fairness-based).** The goal is that over time every *able* Keva does an equal **total** load. Carryover measures how much **more or less than the fair share** a member did that year — **not** just versus the fixed 2/4 — so it works even when the branch got fewer shifts than the full quota would need.
+  - **Fair share** of a type for a year ≈ (Keva shifts of that type that year) ÷ (eligible Keva). At year end: `carryover += done − fair_share` (signed), stored in `week_long_carryover` / `single_day_carryover`. Positive = did more than peers → owes fewer next year; negative = did fewer → owes more.
+  - **Effective requirement next year = base quota − carryover**, and balancing (SC-GD-3) serves the most-owed (most-negative) first.
+  - **Compensation example (your case):** 10 week-long shifts, 10 Keva, fair share = 1 each. One member has an approved constraint and can't serve, so another **covers and does 2** while the rest do 1. The coverer did one **above** fair share → carryover **+1** → next year owes **one fewer**. The absent member did one **below** → carryover **−1** → owes **one more** next year. The other 8 are even.
+  - In a **full** year (enough shifts for everyone's 2/4), fair share = quota, so this reduces to the simple case: did 3 week-long → carryover +1 → owe 1 next year.
 
-> **Impossible-debt guard (decided).** A shortfall only rolls forward if the member was *able* to serve. If their duty flag is off (e.g. `can_do_week_long = false`) that quota **does not apply** to them at all, so **no shortfall accrues** — this prevents a permanently-restricted member from owing an ever-growing, unpayable debt. (A surplus, if somehow present, still rolls forward normally.)
+> **Impossible-debt guard (decided).** A shortfall only rolls forward if the member was *able* to serve. A **one-off approved constraint** (a date block) is a temporary absence — the member is generally able, so their shortfall **does** carry (they do more next year, as above). But if they are **permanently unable** — the duty flag is off (e.g. `can_do_week_long = false`) — that quota **doesn't apply** to them at all and **no shortfall accrues**, so a permanently-restricted member never owes an unpayable, ever-growing debt. (A surplus always carries normally.)
 
 - **SC-GD-3 — Balance among Keva.** Keva are not only *capped* (HC-GD-3) — the available shifts are **spread evenly across them**. Among eligible Keva who still owe a shift of that type, prefer the one who has done the **fewest of that type so far** this year (carryover-adjusted: someone who over-served is lower priority, someone who under-served is higher). So with, e.g., **10 Keva and 10 week-long shifts, each does 1** — nobody does 2 while someone does 0 — and only once everyone has had their fair share does anyone approach the cap.
   - Consequence: in a year with **fewer** shifts than the full quota would require, Keva each do a fair share *below* 2/4; the shortfall vs the target **carries forward** (HC-GD-4 negative carryover). So "exactly 2/4" is an obligation reconciled **over time**, not forced within a single year regardless of how many shifts the branch actually got.
@@ -734,7 +733,7 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 **All Network design decisions are now settled** (NET-1…NET-5). What remains (NET-6, NET-7) is **build-time parity work** that lands when the Network tools/repository/tests are built — same status as Logistics' pending tools.
 
 ### Guard Duty agent gaps (review)
-- **GD-1 — Balance among Keva [resolved].** Keva are spread evenly, not just capped — **SC-GD-3** (fewest-of-type first, carryover-adjusted). Shortfall vs 2/4 carries forward. See §6.A.
+- **GD-1 — Balance among Keva [resolved].** Keva are spread evenly, not just capped — **SC-GD-3** (fewest-of-type first, carryover-adjusted). Carryover is measured vs **fair share**, not the fixed quota (HC-GD-4), so someone who covered for an absentee (did more than peers, even if still ≤ quota) is **compensated with one fewer next year**, and the absentee owes one more. See §6.A.
 - **GD-2 — SUPPORT coverage completeness [open].** Every day needs exactly one SUPPORT person; no mechanism yet to detect gaps/overlaps in the standby roster or confirm a period is fully covered.
 - **GD-3 — Swap nuances [open].** Must a swap be same shift type? How does a cross-population (Keva↔Sadir) swap affect Keva quota counts / burden? Currently just "must be legal."
 - **GD-4 — Unfillable shift [open].** If the eligible pool is empty (all date-blocked or at quota), the shift stays `OPEN`. No escalation/alert or relaxation path defined.
