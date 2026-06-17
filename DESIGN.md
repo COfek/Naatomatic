@@ -270,6 +270,19 @@ payload = { "wall_jack_id": <id>, "desired_classification": "CIVILIAN|GLOBAL|SEC
 
 **Port history (decided — NET-4).** Every port allocate / release / re-patch is recorded as an `AuditLog` row (`entity_type = "port"`, who/when/before/after). There is **no** separate port-transfer table — the movement trail is obtained by querying `AuditLog` for that port. (Equipment keeps its dedicated `EquipmentTransfer` table; ports rely on the generic audit log, which is enough for their simpler allocate/release lifecycle.)
 
+### Network Connection Pipeline (decided)
+The end-to-end flow for connecting a workstation — the network twin of the Logistics dispensing pipeline (§5). Validation happens **twice** (at request and at resolution) because port stock and the requester's holdings can change in between.
+
+1. **Request (soldier, via chat).** The soldier asks to connect a workstation. The agent needs **two** details — the **wall jack** and the **desired classification**. If either is missing it **asks** (never guesses — §2). → payload `{wall_jack_id, desired_classification}`.
+2. **Validation — gate #1.** Reject before opening a ticket if: the jack/classification don't resolve to real values; the requester already holds a port of that classification (**HC-NET-1**); or there is no available (`DISCONNECTED`) port on a switch of that classification.
+3. **Ticket opens** (`NETWORK_REQUEST`, `OPEN`, with the payload). The soldier can query its status anytime.
+4. **Manager review (pull-based).** The `NETWORK_MANAGER` asks the chat for open network tickets — no push alerts. Only the network-manager role can act.
+5. **Physical patch.** The manager physically wires the wall jack to a free port on a switch of the requested classification.
+6. **Resolve (manager, via chat) — gate #2.** The manager runs `resolve_ticket` **by ticket id** (mistyped id → "did you mean?" list of the closest open tickets, §2). It **re-validates** (port still `DISCONNECTED`? requester still within HC-NET-1? switch classification correct?), then — resolution-driven — writes the WallJack→Port mapping, sets the port `CONNECTED` / `allocated_to = requester`, sets `resolved_port_id`, closes the ticket (`RESOLVED`), and writes an `AuditLog` row. If re-validation now fails, resolution is refused and the ticket stays open with a reason.
+7. **Done.** The soldier's jack is live on the requested network; the system now knows they hold one port of that classification (a second such request is blocked by HC-NET-1). Disconnect later via `release_port`; deactivation triggers leaver cleanup.
+
+> Same backbone as §5: **two-gate validation**, **role-scoped** action, **resolution-driven** state change, **no fabricated identifiers**, and **did-you-mean** on a bad ticket id.
+
 ---
 
 ## 5. Pillar 2 — Logistics Operations Agent
