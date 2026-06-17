@@ -57,12 +57,12 @@ def _dates_overlap(a_start: date, a_end: date, b_start: date, b_end: date) -> bo
 # Network
 # --------------------------------------------------------------------------- #
 def check_hc_net_1(session: Session) -> list[str]:
-    """HC-NET-1: a person holds at most one (OCCUPIED) port per classification."""
+    """HC-NET-1: a person holds at most one CONNECTED port per classification."""
     seen: dict[int, Counter] = defaultdict(Counter)
     ports = session.scalars(
         select(t.Port).where(
             t.Port.allocated_to.is_not(None),
-            t.Port.status == PortStatus.OCCUPIED,
+            t.Port.status == PortStatus.CONNECTED,
         )
     ).all()
     for port in ports:
@@ -79,13 +79,13 @@ def check_hc_net_1(session: Session) -> list[str]:
 
 
 def check_hc_net_2(session: Session) -> list[str]:
-    """HC-NET-2: OCCUPIED <=> allocated_to set; FREE/DISABLED => no allocation."""
+    """HC-NET-2: CONNECTED <=> allocated_to set; DISCONNECTED => no allocation."""
     violations = []
     for port in session.scalars(select(t.Port)).all():
-        if port.status == PortStatus.OCCUPIED and port.allocated_to is None:
-            violations.append(f"port id={port.id} is OCCUPIED but has no allocated_to")
-        if port.status in (PortStatus.FREE, PortStatus.DISABLED) and port.allocated_to is not None:
-            violations.append(f"port id={port.id} is {port.status.value} but has allocated_to")
+        if port.status == PortStatus.CONNECTED and port.allocated_to is None:
+            violations.append(f"port id={port.id} is CONNECTED but has no allocated_to")
+        if port.status == PortStatus.DISCONNECTED and port.allocated_to is not None:
+            violations.append(f"port id={port.id} is DISCONNECTED but has allocated_to")
     return violations
 
 
@@ -309,7 +309,7 @@ class Check:
 
 ALL_CHECKS: list[Check] = [
     Check("HC-NET-1", "One port per classification per person", check_hc_net_1),
-    Check("HC-NET-2", "Port status matches allocation (OCCUPIED<=>holder)", check_hc_net_2),
+    Check("HC-NET-2", "Port status matches allocation (CONNECTED<=>holder)", check_hc_net_2),
     Check("HC-LOG-1", "Max 2 monitors per person", check_hc_log_1),
     Check("HC-LOG-2", "Max 1 computer per classification per person", check_hc_log_2),
     Check("HC-GD-0", "Assignment population/rank match", check_hc_gd_0),

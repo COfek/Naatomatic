@@ -131,7 +131,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.add(sw)
         session.flush()
         for pn in range(1, total_ports + 1):
-            port = m.Port(switch_id=sw.id, port_number=pn, status=PortStatus.FREE)
+            port = m.Port(switch_id=sw.id, port_number=pn, status=PortStatus.DISCONNECTED)
             session.add(port)
             all_ports.append((port, classification))
     session.flush()
@@ -148,7 +148,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             ]
             if eligible:
                 holder = random.choice(eligible)
-                port.status = PortStatus.OCCUPIED
+                port.status = PortStatus.CONNECTED
                 port.allocated_to = holder.id
                 used_class_by_person[holder.id].add(classification)
                 wall_jack_count += 1

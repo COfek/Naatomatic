@@ -176,7 +176,7 @@ OPEN ⇄ ON_HOLD → RESOLVED (terminal)
 1. **Validate** the intended outcome against hard rules (e.g., HC-LOG-2 before signing a computer; HC-NET-1 before allocating a port). Reject if it would violate one — the DB is left unchanged.
 2. **Apply the fulfilment:**
    - *EQUIPMENT_REQUEST* → sign the chosen item to the requester (`signed_to = requester`), clear `reserved_for`, set status (`READY_TO_USE → IN_USE`); set `resolved_item_catalog`. The item is no longer held by the depot (`1234567`).
-   - *NETWORK_REQUEST* → write the WallJack→Port mapping, set the port `OCCUPIED` / `allocated_to = requester`; set `resolved_port_id`.
+   - *NETWORK_REQUEST* → write the WallJack→Port mapping, set the port `CONNECTED` / `allocated_to = requester`; set `resolved_port_id`.
 3. **Close the ticket** (`status = RESOLVED`, stamp `resolved_at`).
 4. **Record** an `EquipmentTransfer` (for equipment) and an `AuditLog` entry (always).
 
@@ -207,8 +207,8 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 | `switch_id` | FK → Switch | |
 | `port_number` | int | |
 | `classification` | enum (derived) | Inherited from `switch.classification` (switches are single-class). Not stored separately. |
-| `status` | enum | `FREE` \| `OCCUPIED` \| `DISABLED` |
-| `allocated_to` | FK → Personnel (nullable) | the person holding this port |
+| `status` | enum | `DISCONNECTED` (available) \| `CONNECTED` (wired to a jack & allocated). Binary — there is no "disabled" state. |
+| `allocated_to` | FK → Personnel (nullable) | the person holding this port (set iff CONNECTED) |
 
 > The physical jack↔port link is stored **once**, on `WallJack.port_id` (below) — not duplicated on Port. Given a port, its jack is found by reverse lookup. (Earlier drafts also listed `Port.wall_jack_id`; that duplicate is removed.)
 
@@ -243,8 +243,8 @@ payload = { "wall_jack_id": <id>, "desired_classification": "CIVILIAN|GLOBAL|SEC
 ### Hard Constraints
 - **HC-NET-1 — One port per classification per person.** A given personnel member may hold at most one allocated port of each classification (so up to 4 total, one per level).
   - Enforced on `allocate_port`: reject if person already holds a port at that classification.
-  - Counts only **OCCUPIED** ports (a `DISABLED` port is not a live allocation).
-- **HC-NET-2 — Port status / allocation consistency.** An `OCCUPIED` port must have an `allocated_to`; a `FREE` or `DISABLED` port must not. (And, via the unique `WallJack.port_id`, a port has at most one wall jack.)
+  - Counts **CONNECTED** ports.
+- **HC-NET-2 — Port status / allocation consistency.** A `CONNECTED` port must have an `allocated_to`; a `DISCONNECTED` port must not. (And, via the unique `WallJack.port_id`, a port has at most one wall jack.)
 
 **Mapping updates are resolution-driven.** The WallJack→Port mapping (and the port's `allocated_to`) is updated **only when the network manager resolves the connection ticket** — never automatically on ticket creation. Flow: requester opens a `NETWORK_REQUEST` → manager physically patches → manager resolves the ticket → resolution writes the WallJack/Port changes.
 
@@ -646,15 +646,15 @@ A structured review (design holes, code correctness, design↔code consistency, 
 > Note: **SC-GD-1/2** (Sadir balancing + tie-break) are **soft** optimization rules, enforced at *assignment time* by the scheduler — they are correctly **not** in `verify.py` (which checks hard invariants only).
 
 ### Network agent gaps (round-2 review)
-A focused review found the Network pillar thinner than Logistics. Fixed in this round: the duplicated Audit Log section; the `Port.wall_jack_id`/`WallJack.port_id` mismatch (now single, unique link); **HC-NET-2** (port status/allocation consistency) added and checked; HC-NET-1 now counts only OCCUPIED ports. Remaining:
+A focused review found the Network pillar thinner than Logistics. Fixed in this round: the duplicated Audit Log section; the `Port.wall_jack_id`/`WallJack.port_id` mismatch (now single, unique link); **HC-NET-2** (port status/allocation consistency) added and checked; HC-NET-1 counts CONNECTED ports; **ports are binary `CONNECTED`/`DISCONNECTED`** (the `DISABLED` state was removed). Remaining:
 
 - **NET-1 — Network ticket payload [MED]. ✓ RESOLVED.** A `NETWORK_REQUEST` carries `payload = {wall_jack_id, desired_classification}` (the soldier specifies the jack and the level they want). See §4 "Network request payload". The generator now populates it.
-- **NET-2 — `DISABLED` port semantics [MED, decision].** When is a port DISABLED (faulty/reserved/decommissioned?), who sets it, and is it excluded from `count_free_ports`? Currently defined but never used.
+- **NET-2 — Port states [MED]. ✓ RESOLVED.** A port is **binary**: `CONNECTED` or `DISCONNECTED`. The `DISABLED` state is removed — there is no "out of order" port status. `count_free_ports` simply counts `DISCONNECTED` ports.
 - **NET-3 — Release / disconnect + leaver cleanup [MED, decision].** No flow frees a port. When a person goes inactive, their ports should be released (analogous to equipment return). Define `release_port` semantics and the leaver rule.
 - **NET-4 — Port allocation history [LOW, decision].** Network has no movement trail (Logistics has EquipmentTransfer + AuditLog). Decide whether port allocate/release/re-patch should be logged (recommend: at least AuditLog rows).
 - **NET-5 — Switch/port decommission [LOW, decision].** No path to retire a switch or port. Probably fine to defer; confirm.
 - **NET-6 — Resolution-driven mapping unbuilt [build-time].** `resolved_port_id` and the allocate-on-resolve flow are specified (§3/§4) but unimplemented; the generator currently produces RESOLVED network tickets with no port link. Build with the Network tools (the `resolve_ticket` flow already covers the logic).
-- **NET-7 — Reporting unexercised [build-time].** `count_free_ports` (FREE vs DISABLED) and `Switch.total_ports`-vs-actual-rows reconciliation get covered when the Network tools/tests are built.
+- **NET-7 — Reporting unexercised [build-time].** `count_free_ports` (count of `DISCONNECTED` ports) and `Switch.total_ports`-vs-actual-rows reconciliation get covered when the Network tools/tests are built.
 
 These mirror features Logistics already has; most are **parity work for the build phase**, with a few small decisions (NET-1, NET-2, NET-3) worth settling first.
 

@@ -47,9 +47,8 @@ class TicketStatus(str, enum.Enum):
 
 # --- Network ---
 class PortStatus(str, enum.Enum):
-    FREE = "FREE"
-    OCCUPIED = "OCCUPIED"
-    DISABLED = "DISABLED"
+    DISCONNECTED = "DISCONNECTED"  # not wired to a wall jack / available
+    CONNECTED = "CONNECTED"        # wired to a wall jack and allocated to a person
 
 
 # --- Equipment ---

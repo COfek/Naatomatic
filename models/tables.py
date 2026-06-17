@@ -156,7 +156,7 @@ class Port(Base):
     switch_id: Mapped[int] = mapped_column(ForeignKey("switch.id"))
     port_number: Mapped[int] = mapped_column(Integer)
     # classification is derived from switch.classification (single-class switches).
-    status: Mapped[PortStatus] = mapped_column(_enum(PortStatus), default=PortStatus.FREE)
+    status: Mapped[PortStatus] = mapped_column(_enum(PortStatus), default=PortStatus.DISCONNECTED)
     allocated_to: Mapped[int | None] = mapped_column(ForeignKey("personnel.id"), nullable=True)
 
     switch: Mapped[Switch] = relationship(back_populates="ports")
