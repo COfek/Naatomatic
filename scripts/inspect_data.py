@@ -71,18 +71,18 @@ def main() -> None:
         status = "PASS" if not bad else f"FAIL: {bad}"
         print(f"  [{status}] {label}")
 
-    # Show the fairest vs busiest by guard burden (separate pools)
+    # Show the fairest vs busiest by shifts burden (two pools)
     jt = session.scalars(select(m.JusticeTable)).all()
-    jt_sorted = sorted(jt, key=lambda r: r.guard_burden_points)
-    print("\n=== Burden points (Justice Table) — guard / support / adhoc pools ===")
+    jt_sorted = sorted(jt, key=lambda r: r.shifts_burden_points)
+    print("\n=== Burden points (Justice Table) — shifts / support pools ===")
     for row in (jt_sorted[:3] + ["..."] + jt_sorted[-3:]):
         if row == "...":
             print("  ...")
             continue
         p = session.get(m.Personnel, row.personnel_id)
         print(f"  {p.full_name:24} {p.population.value:6} "
-              f"guard={row.guard_burden_points:5.1f} support={row.support_burden_points:4.1f} "
-              f"adhoc={row.adhoc_burden_points:4.1f}  week={row.week_long_count} day={row.single_day_count}")
+              f"shifts={row.shifts_burden_points:5.1f} support={row.support_burden_points:4.1f}  "
+              f"week={row.week_long_count} day={row.single_day_count}")
 
     session.close()
 

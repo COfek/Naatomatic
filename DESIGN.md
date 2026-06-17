@@ -438,21 +438,17 @@ Two distinct scheduling models sharing the **Justice Table**.
 | `single_day_count` | int | Keva: SINGLE_DAY shifts done this calendar year |
 | `week_long_carryover` | int (signed) | Keva: WEEK_LONG carryover = cumulative (did − fair share). **Positive** = did more than peers → owes fewer next year; **negative** = did fewer → owes more. See HC-GD-4. |
 | `single_day_carryover` | int (signed) | Keva: SINGLE_DAY carryover, same signed convention |
-| `guard_burden_points` | decimal | Sadir **guard** fairness pool (WEEK_LONG + SINGLE_DAY) |
-| `support_burden_points` | decimal | Sadir **SUPPORT** fairness pool |
-| `adhoc_burden_points` | decimal | **ad-hoc** fairness pool (Sadir; Keva tie-break only) |
+| `shifts_burden_points` | decimal | Sadir **shifts** fairness pool (WEEK_LONG + SINGLE_DAY + ad-hoc) |
+| `support_burden_points` | decimal | Sadir **SUPPORT** ("tickets") fairness pool |
 | `period_start` | date | quota window anchor (Jan 1 of the calendar year) |
 
-**Burden points — separate pools (decided — GD-3).** Sadir fairness is tracked in **separate pools by duty kind**, balanced **independently**. Doing a lot of one duty does **not** excuse a soldier from another — guard duty and customer-support ("ticket") standby are tracked totally separately:
+**Burden points — two separate pools (decided — GD-3).** Sadir fairness is tracked in **two separate pools**, balanced **independently**. Doing a lot of one does **not** excuse a soldier from the other — guard/ad-hoc "shifts" and customer-support ("ticket") standby are tracked totally separately:
 | Pool | Counts | Points |
 |------|--------|--------|
-| **Guard** (`guard_burden_points`) | WEEK_LONG + SINGLE_DAY | 7 per week-long, 1 per single-day |
+| **Shifts** (`shifts_burden_points`) | WEEK_LONG + SINGLE_DAY + **ad-hoc** | 7 per week-long, 1 per single-day, 0.5 × days per ad-hoc |
 | **Support** (`support_burden_points`) | SUPPORT standby | days covered — weekday 1, **Fri–Sat weekend 2** |
-| **AdHoc** (`adhoc_burden_points`) | ad-hoc missions | 0.5 × days |
 
-Each pool is balanced on its own: a SUPPORT shift goes to the eligible Sadir with the lowest **support** points; a guard shift to the lowest **guard** points; an ad-hoc to the lowest **ad-hoc** points. (Keva guard duty is quota/count-based, not points; Keva use only the ad-hoc pool, as a tie-break.)
-
-⚠️ASSUMPTION — ad-hoc is modeled as its **own** third pool. You named two pools (shifts vs tickets); confirm whether ad-hoc should stay separate or fold into the guard pool.
+Each pool is balanced on its own: a SUPPORT shift goes to the eligible Sadir with the lowest **support** points; a guard shift or ad-hoc to the lowest **shifts** points. (Keva guard duty is quota/count-based, not points; Keva use the shifts pool only as the ad-hoc tie-break.)
 
 ### Shared hard constraints (eligibility — apply to Keva, Sadir, and ad-hoc)
 - **HC-GD-0 — Population/rank match.** An assignment may only go to a person matching its `eligible_population` and `required_rank` (when set).
@@ -480,11 +476,11 @@ Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
 - **SC-GD-3 — Balance among Keva.** Keva are not only *capped* (HC-GD-3) — the available shifts are **spread evenly across them**. Among eligible Keva who still owe a shift of that type, prefer the one who has done the **fewest of that type so far** this year (carryover-adjusted: someone who over-served is lower priority, someone who under-served is higher). So with, e.g., **10 Keva and 10 week-long shifts, each does 1** — nobody does 2 while someone does 0 — and only once everyone has had their fair share does anyone approach the cap.
   - Consequence: in a year with **fewer** shifts than the full quota would require, Keva each do a fair share *below* 2/4; the shortfall vs the target **carries forward** (HC-GD-4 negative carryover). So "exactly 2/4" is an obligation reconciled **over time**, not forced within a single year regardless of how many shifts the branch actually got.
 
-**Ad-hoc for Keva:** Keva members *usually* don't get ad-hoc missions, but occasionally do. When they do, the ad-hoc burden (in `adhoc_burden_points`) is used **only as a tie-breaker** to balance ad-hoc fairness *among Keva* — it never substitutes for or reduces the 2/4 guard quotas.
+**Ad-hoc for Keva:** Keva members *usually* don't get ad-hoc missions, but occasionally do. When they do, the ad-hoc burden (in the shifts pool, `shifts_burden_points`) is used **only as a tie-breaker** to balance ad-hoc fairness *among Keva* — it never substitutes for or reduces the 2/4 guard quotas.
 
 ### B. Sadir (mandatory) — soft optimization
 - **No hard cap.**
-- **SC-GD-1 — Balance the burden (per pool).** Prioritize the eligible soldier(s) with the **lowest points in the pool matching the duty kind** (guard / support / ad-hoc) — the pools are separate, so guard fairness and SUPPORT fairness are balanced independently.
+- **SC-GD-1 — Balance the burden (per pool).** Prioritize the eligible soldier(s) with the **lowest points in the pool matching the duty kind** — the **shifts** pool (guard + ad-hoc) or the **support** pool — so shifts fairness and SUPPORT fairness are balanced independently.
 - **SC-GD-2 — Tie-break.** When eligible soldiers are tied on the relevant pool's points, prefer the one with the **longest time since their last assignment of that kind**.
 
 ### Scheduling & assignment flow (decided)
@@ -554,7 +550,7 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 | `status` | enum | `OPEN` \| `ASSIGNED` \| `COMPLETED` \| `CANCELLED` |
 
 ### Burden
-- Each ad-hoc mission contributes **0.5 × `days`** to the assignee's `adhoc_burden_points` (its own pool; half weight — no overnight stay). A 3-day mission = 1.5 points.
+- Each ad-hoc mission contributes **0.5 × `days`** to the assignee's `shifts_burden_points` (folded into the shifts pool; half weight — no overnight stay). A 3-day mission = 1.5 points.
 
 ### Capabilities (agent tools)
 - `create_adhoc_mission(title, dates, days, eligibility?)`.
@@ -564,7 +560,7 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 
 ### Constraints
 - **HC-GD-0, HC-GD-5, HC-GD-6 (Eligibility)** apply — population/rank match, date availability, and the `can_do_adhoc` flag, same pattern as shifts.
-- **SC-GD-1/2 (Balancing + tie-break)** apply — ad-hoc assignment prefers the eligible soldier with the lowest `adhoc_burden_points` (its own pool).
+- **SC-GD-1/2 (Balancing + tie-break)** apply — ad-hoc assignment prefers the eligible soldier with the lowest `shifts_burden_points` (ad-hoc is part of the shifts pool).
 
 ❓OPEN — Do ad-hoc missions apply to **Keva** as well as Sadir? If assigned to Keva, do they count toward any Keva quota, or sit entirely outside the quota system (burden-tracked only)? (Recommendation: assignable to both; for Keva, burden-tracked but *not* part of the 2/4 guard quotas.)
 
@@ -611,7 +607,7 @@ A single `Calendar` abstraction backs all use cases (guard, ad-hoc, formatting),
 ### AdHoc calendar (`ADHOC`)
 - One event per assigned `AdHocMission`.
 - Same flexible scoping as the guard calendar (filter by population, rank, date).
-- Feeds `adhoc_burden_points` (0.5 × days) and is included in conflict detection alongside guard duty.
+- Feeds `shifts_burden_points` (0.5 × days, folded into the shifts pool) and is included in conflict detection alongside guard duty.
 
 ### Formatting calendar (`FORMATTING`)
 - Tracks computers undergoing formatting.
@@ -742,7 +738,7 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 ### Guard Duty agent gaps (review)
 - **GD-1 — Balance among Keva [resolved].** Keva are spread evenly, not just capped — **SC-GD-3** (fewest-of-type first, carryover-adjusted). Carryover is measured vs **fair share**, not the fixed quota (HC-GD-4), so someone who covered for an absentee (did more than peers, even if still ≤ quota) is **compensated with one fewer next year**, and the absentee owes one more. See §6.A.
 - **GD-2 — SUPPORT coverage completeness [resolved].** A **quarterly maintenance step** (§14) generates the upcoming quarter's SUPPORT slots (tiling every day; weekday singles + Fri–Sat weekend pairs) and assigns them ahead by Justice-Table fairness; idempotent. A `check_support_coverage` safety-net flags gaps/overlaps (e.g. after a cancellation). See §6 SUPPORT note.
-- **GD-3 — Swap nuances [resolved].** A swap must be **same population AND same shift type** (week↔week, day↔day, support↔support; never Keva↔Sadir, never cross-type), then the usual eligibility/overlap/quota checks. Also decided: Sadir burden is tracked in **separate pools** (guard / SUPPORT / ad-hoc), balanced independently — see §6 "Burden points — separate pools." See §6 op #2.
+- **GD-3 — Swap nuances [resolved].** A swap must be **same population AND same shift type** (week↔week, day↔day, support↔support; never Keva↔Sadir, never cross-type), then the usual eligibility/overlap/quota checks. Also decided: Sadir burden is tracked in **two separate pools** — **shifts** (guard + ad-hoc) and **SUPPORT** — balanced independently; see §6 "Burden points — two separate pools." See §6 op #2.
 - **GD-4 — Unfillable shift [open].** If the eligible pool is empty (all date-blocked or at quota), the shift stays `OPEN`. No escalation/alert or relaxation path defined.
 - **GD-5 — Emergency reassignment & cancellation [open].** Beyond a manager swap, no flow for a last-minute drop-out (sick) or cancelling a no-longer-needed shift (`CANCELLED` exists but unused).
 - **GD-6 — Year-boundary shift [open].** Which calendar year's quota a WEEK_LONG spanning Dec→Jan counts toward (affects Keva counts + year reset).

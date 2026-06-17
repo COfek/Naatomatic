@@ -348,8 +348,8 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         # SC-GD-1: prefer the lowest burden in the pool matching the duty kind.
         if shift_type == ShiftType.SUPPORT:
             pool.sort(key=lambda x: jt[x.id].support_burden_points)
-        else:  # WEEK_LONG / SINGLE_DAY share the guard pool
-            pool.sort(key=lambda x: jt[x.id].guard_burden_points)
+        else:  # WEEK_LONG / SINGLE_DAY (and ad-hoc) share the shifts pool
+            pool.sort(key=lambda x: jt[x.id].shifts_burden_points)
         return pool[0]
 
     # --- Shifts (assigned to lowest-burden eligible person) ---
@@ -388,13 +388,13 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.flush()
         if holder:
             assigned_intervals[holder.id].append((start, end))  # HC-GD-7
-            # Separate pools: SUPPORT -> support pool (days; weekday 1, weekend 2);
-            # WEEK_LONG/SINGLE_DAY -> guard pool (7 / 1).
+            # Two pools: SUPPORT -> support pool (days; weekday 1, weekend 2);
+            # WEEK_LONG/SINGLE_DAY -> shifts pool (7 / 1). Ad-hoc also -> shifts pool (below).
             shift_days = (end - start).days + 1
             if stype == ShiftType.SUPPORT:
                 jt[holder.id].support_burden_points += float(shift_days)
             else:
-                jt[holder.id].guard_burden_points += 7.0 if stype == ShiftType.WEEK_LONG else 1.0
+                jt[holder.id].shifts_burden_points += 7.0 if stype == ShiftType.WEEK_LONG else 1.0
             if stype == ShiftType.WEEK_LONG:
                 jt[holder.id].week_long_count += 1
             elif stype == ShiftType.SINGLE_DAY:
@@ -422,7 +422,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
             and not is_blocked(p.id, start, end)
             and not is_busy(p.id, start, end)  # HC-GD-7
         ]
-        holder = min(pool, key=lambda x: jt[x.id].adhoc_burden_points) if pool else None
+        holder = min(pool, key=lambda x: jt[x.id].shifts_burden_points) if pool else None
         mission = m.AdHocMission(
             title=random.choice(["Memorial ceremony", "Volunteering day", "Branch ceremony"]),
             description=fake.sentence(),
@@ -436,7 +436,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
         session.flush()
         if holder:
             assigned_intervals[holder.id].append((start, end))  # HC-GD-7
-            jt[holder.id].adhoc_burden_points += 0.5 * days
+            jt[holder.id].shifts_burden_points += 0.5 * days  # ad-hoc folds into the shifts pool
             session.add(
                 m.CalendarEvent(
                     calendar_id=adhoc_cal.id,
