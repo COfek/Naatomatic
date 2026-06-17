@@ -473,6 +473,9 @@ Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
 
 > **Impossible-debt guard (decided).** A shortfall only rolls forward if the member was *able* to serve. If their duty flag is off (e.g. `can_do_week_long = false`) that quota **does not apply** to them at all, so **no shortfall accrues** — this prevents a permanently-restricted member from owing an ever-growing, unpayable debt. (A surplus, if somehow present, still rolls forward normally.)
 
+- **SC-GD-3 — Balance among Keva.** Keva are not only *capped* (HC-GD-3) — the available shifts are **spread evenly across them**. Among eligible Keva who still owe a shift of that type, prefer the one who has done the **fewest of that type so far** this year (carryover-adjusted: someone who over-served is lower priority, someone who under-served is higher). So with, e.g., **10 Keva and 10 week-long shifts, each does 1** — nobody does 2 while someone does 0 — and only once everyone has had their fair share does anyone approach the cap.
+  - Consequence: in a year with **fewer** shifts than the full quota would require, Keva each do a fair share *below* 2/4; the shortfall vs the target **carries forward** (HC-GD-4 negative carryover). So "exactly 2/4" is an obligation reconciled **over time**, not forced within a single year regardless of how many shifts the branch actually got.
+
 **Ad-hoc for Keva:** Keva members *usually* don't get ad-hoc missions, but occasionally do. When they do, the ad-hoc burden (in `total_burden_points`) is used **only as a tie-breaker** to balance ad-hoc fairness *among Keva* — it never substitutes for or reduces the 2/4 guard quotas.
 
 ### B. Sadir (mandatory) — soft optimization
@@ -496,7 +499,7 @@ Shift **dates are an input**, not something the system invents — the branch is
 
 **Assignment logic (both modes).** For each shift, pick the person to staff it using the **current Justice Table + constraints**:
 - **Eligible pool** = passes HC-GD-0 (population/rank), HC-GD-5 (not date-blocked on the shift dates), HC-GD-6 (has the duty flag), HC-GD-7 (no overlapping assignment).
-- **Within that pool**, choose by the population's model: **Keva** must still owe this shift type (effective requirement = base − carryover, HC-GD-3/4 — don't exceed it); **Sadir** = lowest `total_burden_points` (SC-GD-1), tie-break longest-since-last (SC-GD-2).
+- **Within that pool**, choose by the population's model: **Keva** must still owe this shift type (effective requirement = base − carryover, HC-GD-3/4 — don't exceed it) and are **balanced among themselves** — pick the eligible Keva who has done the fewest of that type (SC-GD-3), so the load spreads evenly; **Sadir** = lowest `total_burden_points` (SC-GD-1). Tie-break in both cases: longest time since last assignment (SC-GD-2).
 - A batch is assigned **greedily and sequentially**, updating each person's burden as you go, so the whole list comes out balanced (this is exactly what the data generator already does). The manager can `suggest_assignment` (preview) or `assign_shift` (commit), and override a suggestion manually (still constraint-validated).
 
 ### Operations (use cases)
@@ -729,6 +732,16 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 - **NET-7 — Reporting unexercised [build-time].** `count_free_ports` (count of `DISCONNECTED` ports) and `Switch.total_ports`-vs-actual-rows reconciliation get covered when the Network tools/tests are built.
 
 **All Network design decisions are now settled** (NET-1…NET-5). What remains (NET-6, NET-7) is **build-time parity work** that lands when the Network tools/repository/tests are built — same status as Logistics' pending tools.
+
+### Guard Duty agent gaps (review)
+- **GD-1 — Balance among Keva [resolved].** Keva are spread evenly, not just capped — **SC-GD-3** (fewest-of-type first, carryover-adjusted). Shortfall vs 2/4 carries forward. See §6.A.
+- **GD-2 — SUPPORT coverage completeness [open].** Every day needs exactly one SUPPORT person; no mechanism yet to detect gaps/overlaps in the standby roster or confirm a period is fully covered.
+- **GD-3 — Swap nuances [open].** Must a swap be same shift type? How does a cross-population (Keva↔Sadir) swap affect Keva quota counts / burden? Currently just "must be legal."
+- **GD-4 — Unfillable shift [open].** If the eligible pool is empty (all date-blocked or at quota), the shift stays `OPEN`. No escalation/alert or relaxation path defined.
+- **GD-5 — Emergency reassignment & cancellation [open].** Beyond a manager swap, no flow for a last-minute drop-out (sick) or cancelling a no-longer-needed shift (`CANCELLED` exists but unused).
+- **GD-6 — Year-boundary shift [open].** Which calendar year's quota a WEEK_LONG spanning Dec→Jan counts toward (affects Keva counts + year reset).
+- **GD-7 — Approval-time conflict re-check [open].** A `PENDING` constraint approved after a conflicting assignment was made (pending didn't block) must be re-checked at approval and rejected/flagged.
+- **Build-time:** carryover/year-reset code (R2-6), `auto_assign`/Planner, the tools, AuditLog writes for assignments.
 
 ---
 
