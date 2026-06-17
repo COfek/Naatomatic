@@ -31,6 +31,7 @@ from models.enums import (
     CalendarSubjectType,
     Classification,
     ComputerStatus,
+    DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
     Population,
@@ -113,6 +114,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
                     start_date=start,
                     end_date=end,
                     reason=random.choice(["trip", "appointment", "family event", "course"]),
+                    status=DateBlockStatus.APPROVED,  # generated blocks are already-approved/in-effect
                 )
             )
 

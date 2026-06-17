@@ -32,6 +32,7 @@ from models.enums import (
     CalendarSubjectType,
     Classification,
     ComputerStatus,
+    DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
     Population,
@@ -89,6 +90,11 @@ class PersonnelDateBlock(Base):
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date] = mapped_column(Date)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Soldier-submitted constraints need SHIFT_MANAGER approval; only APPROVED blocks
+    # count for HC-GD-5.
+    status: Mapped[DateBlockStatus] = mapped_column(
+        _enum(DateBlockStatus), default=DateBlockStatus.PENDING
+    )
 
     personnel: Mapped[Personnel] = relationship(back_populates="date_blocks")
 

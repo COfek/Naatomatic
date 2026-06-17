@@ -30,6 +30,7 @@ from models.enums import (
     DEPOT_PERSONAL_NUMBER,
     AssignmentStatus,
     ComputerStatus,
+    DateBlockStatus,
     EquipmentKind,
     MonitorStatus,
     Population,
@@ -173,10 +174,14 @@ def check_hc_gd_0(session: Session) -> list[str]:
 
 
 def check_hc_gd_5(session: Session) -> list[str]:
-    """HC-GD-5: assignee is not date-blocked over the assignment's dates."""
+    """HC-GD-5: assignee is not date-blocked (APPROVED block) over the assignment's dates."""
     violations = []
     blocks: dict[int, list] = defaultdict(list)
-    for b in session.scalars(select(t.PersonnelDateBlock)).all():
+    for b in session.scalars(
+        select(t.PersonnelDateBlock).where(
+            t.PersonnelDateBlock.status == DateBlockStatus.APPROVED
+        )
+    ).all():
         blocks[b.personnel_id].append(b)
     for a in _assignments(session):
         for b in blocks.get(a.holder_id, []):

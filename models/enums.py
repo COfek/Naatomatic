@@ -45,6 +45,13 @@ class TicketStatus(str, enum.Enum):
     RESOLVED = "RESOLVED"
 
 
+class DateBlockStatus(str, enum.Enum):
+    """A soldier-submitted constraint needs SHIFT_MANAGER approval before it takes effect."""
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"  # only APPROVED blocks count for HC-GD-5
+    REJECTED = "REJECTED"
+
+
 # --- Network ---
 class PortStatus(str, enum.Enum):
     DISCONNECTED = "DISCONNECTED"  # not wired to a wall jack / available

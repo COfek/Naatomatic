@@ -142,7 +142,10 @@ Date-based unavailability — a person can't serve on specific dates (trip, appo
 | `personnel_id` | FK → Personnel | |
 | `start_date` | date | |
 | `end_date` | date | |
-| `reason` | string | free-text note (e.g., "trip", "appointment") |
+| `reason` | string | short explanation (required when a soldier submits one) |
+| `status` | enum | `PENDING` \| `APPROVED` \| `REJECTED`. A soldier-submitted constraint starts `PENDING` and needs `SHIFT_MANAGER` approval; **only `APPROVED` blocks count for HC-GD-5.** |
+
+> **Approval workflow (decided).** A soldier adds a constraint with dates + reason; it is created `PENDING`. The `SHIFT_MANAGER` reviews and approves/rejects it. Only `APPROVED` blocks make a person unavailable for assignment. A constraint that **overlaps a shift the soldier is already assigned to is rejected at submission** (they must do that shift or arrange a swap first) — see §6.
 
 ### Rank (shared enum)
 Used for guard-duty eligibility (some shifts are restricted to a specific rank).
@@ -448,7 +451,7 @@ All assignment types accumulate into the same `total_burden_points`, so balancin
 
 ### Shared hard constraints (eligibility — apply to Keva, Sadir, and ad-hoc)
 - **HC-GD-0 — Population/rank match.** An assignment may only go to a person matching its `eligible_population` and `required_rank` (when set).
-- **HC-GD-5 — Availability.** A person must not be assigned to an assignment whose dates overlap any of their `PersonnelDateBlock` records.
+- **HC-GD-5 — Availability.** A person must not be assigned to an assignment whose dates overlap any of their **`APPROVED`** `PersonnelDateBlock` records (pending/rejected constraints don't count).
 - **HC-GD-6 — Duty-type eligibility.** A person must have the matching duty-type flag set true: `can_do_week_long` for WEEK_LONG shifts, `can_do_single_day` for SINGLE_DAY shifts, `can_do_support` for SUPPORT shifts, `can_do_adhoc` for ad-hoc missions. (SUPPORT shifts are **Sadir-only**, and `can_do_support` is false until a member completes the required course.)
 - **HC-GD-7 — No overlapping assignments.** A person may not be assigned to two assignments whose date ranges overlap — at most one shift/SUPPORT/ad-hoc at a time. Applies across all assignment types (a guard shift and an ad-hoc mission on the same day is a violation).
 
@@ -496,12 +499,25 @@ Shift **dates are an input**, not something the system invents — the branch is
 - **Within that pool**, choose by the population's model: **Keva** must still owe this shift type (effective requirement = base − carryover, HC-GD-3/4 — don't exceed it); **Sadir** = lowest `total_burden_points` (SC-GD-1), tie-break longest-since-last (SC-GD-2).
 - A batch is assigned **greedily and sequentially**, updating each person's burden as you go, so the whole list comes out balanced (this is exactly what the data generator already does). The manager can `suggest_assignment` (preview) or `assign_shift` (commit), and override a suggestion manually (still constraint-validated).
 
+### Operations (use cases)
+The Guard Duty agent supports these five operations:
+
+1. **Batch assign (manager).** Manager inputs a list of dates → fair assignment across the Justice Table + constraints. (`create_shifts` + `auto_assign`.)
+2. **Swap (manager).** Manager swaps two people's shifts. The agent **verifies the swap is legal first**: each person must be eligible for the *other's* shift — HC-GD-0 (population/rank), HC-GD-5 (not date-blocked then), HC-GD-6 (duty flag), HC-GD-7 (no new overlap), and Keva quotas still hold. If legal → swap the assignees and move their burden points with the shifts; else → refuse with the reason. (`swap_shifts`.)
+3. **Add constraint (soldier).** A soldier submits unavailability: dates + a short reason. Created `PENDING`; **rejected immediately if it overlaps a shift they're already assigned to** (do that shift or arrange a swap first). Otherwise it waits for `SHIFT_MANAGER` approval; only once `APPROVED` does it block future assignment (HC-GD-5). (`add_date_block` + `review/approve_date_block`.)
+4. **View my shifts (soldier).** A soldier sees their own assignments — upcoming **and** previously completed — plus their Justice-Table standing. Self-service, pull-based. (`list_my_shifts`.)
+5. **Assign a new shift (manager).** A single new shift arrives → assign someone considering the current Justice Table, existing assignments, and constraints. (`create_shift` + `suggest_assignment`/`assign_shift`.) Same engine as #1, one shift.
+
 ### Capabilities (agent tools)
 - `create_shifts(source)` — **batch**, `SHIFT_MANAGER` only: ingest the list — a chat-pasted list **or** a CSV/Excel file path — parse to `{start_date, length, targeting?}`, echo back for confirmation, then create shift rows.
 - `create_shift(type, start_date, ...)` — **single** shift (the edge case), `SHIFT_MANAGER` only.
 - `assign_shift(shift, personnel)` — commit a manual assignment (constraint-validated).
 - `auto_assign(shifts)` — assign a batch automatically, balanced by the Justice Table.
 - `suggest_assignment(shift)` — preview the recommended person(s) per the model, without committing.
+- `swap_shifts(shift_a, shift_b)` — `SHIFT_MANAGER` only: swap two assignees after validating both are eligible for the swapped shift (op #2).
+- `add_date_block(start, end, reason)` — a soldier submits a constraint (→ `PENDING`; rejected if it overlaps their own existing assignment).
+- `review_date_blocks()` / `approve_date_block(id)` / `reject_date_block(id)` — `SHIFT_MANAGER` only: act on pending constraints.
+- `list_my_shifts(include_past?)` — a soldier's own assignments, upcoming and past (op #4).
 - `get_justice_table(filter: population?)` — fairness standings (transparency).
 - `mark_shift_completed(shift)`.
 
