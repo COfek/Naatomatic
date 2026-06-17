@@ -477,11 +477,28 @@ Base annual target per Keva member (calendar year, Jan 1 – Dec 31):
 - **SC-GD-1 — Balance the burden.** Prioritize assigning the soldier(s) with the **lowest `total_burden_points`** to date, **within the eligible pool** (after applying HC-GD-0 rank/population filtering). Points combine guard duty *and* ad-hoc missions (see Burden Points scale above).
 - **SC-GD-2 — Tie-break.** When multiple eligible soldiers are tied on `total_burden_points`, prefer the one with the **longest time since their last assignment** (any type).
 
+### Scheduling & assignment flow (decided)
+Shift **dates are an input**, not something the system invents — the branch is *given* the coverage it must staff, and the agent's job is to **assign people** to those slots fairly.
+
+**Two input modes, one assignment engine:**
+1. **Batch list (the normal case).** The branch periodically receives a list of dated shifts to cover:
+   - **Half-yearly** — the `WEEK_LONG` shifts (a week here, a week there across the half-year).
+   - **Quarterly** — the `SINGLE_DAY` shifts.
+   The manager hands this list (each entry = `{start_date, length → WEEK_LONG/SINGLE_DAY, optional population/rank targeting}`) to the agent, which creates the shift rows and assigns people.
+2. **Single shift (the edge case).** A one-off `WEEK_LONG` or `SINGLE_DAY` shift can appear out of nowhere; it's created and assigned through the **same** logic, just one at a time.
+
+**Assignment logic (both modes).** For each shift, pick the person to staff it using the **current Justice Table + constraints**:
+- **Eligible pool** = passes HC-GD-0 (population/rank), HC-GD-5 (not date-blocked on the shift dates), HC-GD-6 (has the duty flag), HC-GD-7 (no overlapping assignment).
+- **Within that pool**, choose by the population's model: **Keva** must still owe this shift type (effective requirement = base − carryover, HC-GD-3/4 — don't exceed it); **Sadir** = lowest `total_burden_points` (SC-GD-1), tie-break longest-since-last (SC-GD-2).
+- A batch is assigned **greedily and sequentially**, updating each person's burden as you go, so the whole list comes out balanced (this is exactly what the data generator already does). The manager can `suggest_assignment` (preview) or `assign_shift` (commit), and override a suggestion manually (still constraint-validated).
+
 ### Capabilities (agent tools)
-- `create_shift(type, dates)`.
-- `assign_shift(shift, personnel)` — validated against Keva quotas / Sadir balancing.
-- `suggest_assignment(shift)` — returns the recommended person(s) per the model.
-- `get_justice_table(filter: population?)`.
+- `create_shifts(list of {start_date, length, targeting?})` — **batch**: ingest the received list of dates and create shift rows.
+- `create_shift(type, start_date, ...)` — **single** shift (the edge case).
+- `assign_shift(shift, personnel)` — commit a manual assignment (constraint-validated).
+- `auto_assign(shifts)` — assign a batch automatically, balanced by the Justice Table.
+- `suggest_assignment(shift)` — preview the recommended person(s) per the model, without committing.
+- `get_justice_table(filter: population?)` — fairness standings (transparency).
 - `mark_shift_completed(shift)`.
 
 ---
