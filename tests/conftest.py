@@ -17,7 +17,7 @@ from faker import Faker
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from models.db import create_all, create_session, get_engine
-from scripts.generate_data import generate
+from data.generation.generate_data import generate
 
 
 @pytest.fixture

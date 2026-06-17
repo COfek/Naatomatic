@@ -20,6 +20,9 @@ env/
 *.sqlite
 *.sqlite3
 
+# Generated dashboard
+dashboard.html
+
 # IDE / editor
 .vscode/
 .idea/
