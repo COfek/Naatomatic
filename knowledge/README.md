@@ -15,3 +15,9 @@ files/URLs.
 
 Branch **structure** (departments/teams/leaders) and a person's **own details**
 are data-backed (read live from the DB), not static docs.
+
+> **Status: the content here is placeholder/draft** (except `05-fairness-explained`,
+> which is derived from the system design). The agent answers *from* these docs, so
+> replace them with the branch's real material — intro, procedures, the actual
+> SmartBase URL + weapon-safety file, and the real infosec policy. If a topic has no
+> real content, the agent says it doesn't have the information rather than inventing it.

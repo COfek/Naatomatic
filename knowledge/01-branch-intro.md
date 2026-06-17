@@ -1,5 +1,7 @@
 # The CombatAI branch — introduction
 
+> **DRAFT placeholder — replace with the branch's real content.** The text below is an example; the agent will answer from whatever real material you put here.
+
 CombatAI is a software branch. Day-to-day operations are managed by **Naatomatic**,
 an assistant you reach through chat. It covers four operational areas plus this
 help desk:

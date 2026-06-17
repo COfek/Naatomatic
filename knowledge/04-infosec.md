@@ -1,5 +1,7 @@
 # Information security — what NOT to do in the office
 
+> **DRAFT placeholder — replace with the branch's real security policy.** The items below are sensible defaults, not the official policy.
+
 The branch runs **separate networks by classification** (Civilian, Global, Secret,
 Top-Secret). Keeping them separate is the whole point — mixing them is a serious
 security incident.

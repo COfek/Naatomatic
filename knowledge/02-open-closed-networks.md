@@ -1,5 +1,7 @@
 # Opening a user to the closed networks (Army / Top-Secret / Global)
 
+> **DRAFT — confirm against the real procedure.** The flow below matches the system design; verify it reflects the branch's actual real-world steps.
+
 A workstation is connected to a network by patching its **wall jack** to a free
 **port** on a switch of the right **classification** (`CIVILIAN`, `GLOBAL`,
 `SECRET`, `TOP_SECRET`). You don't do this yourself — you open a request and the

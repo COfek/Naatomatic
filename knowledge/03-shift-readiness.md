@@ -1,5 +1,7 @@
 # Before you go on a guard shift — your readiness "debts"
 
+> The 6-month range rule is real. **The SmartBase URL and the weapon-safety file path below are placeholders — replace with the real ones.**
+
 To be **fit for guard duty** (week-long and single-day shifts, which are armed),
 you must be **range-qualified**: complete shooting-range training **once every 6
 months**. This is enforced — if your qualification is missing or older than 6
