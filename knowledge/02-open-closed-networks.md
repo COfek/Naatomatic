@@ -1,18 +1,15 @@
-# Opening a user to the closed networks (Army / Top-Secret / Global)
+# פתיחת משתמש לרשתות המסווגות
 
-> **DRAFT — confirm against the real procedure.** The flow below matches the system design; verify it reflects the branch's actual real-world steps.
+פתיחת משתמש עבור חיילים חדשים לרשתות מסווגות תתבצע דרך **הגשת טופס פתיחת משתמש**, שיוגש אל **ראש לשכה ענפי**.
 
-A workstation is connected to a network by patching its **wall jack** to a free
-**port** on a switch of the right **classification** (`CIVILIAN`, `GLOBAL`,
-`SECRET`, `TOP_SECRET`). You don't do this yourself — you open a request and the
-network manager carries it out.
+- את המסמך הנדרש (טופס פתיחת המשתמש) יש לבקש **מראש הצוות האחראי** או **מהחופף**.
+- לאחר מילוי הטופס, יש להגישו לראש הלשכה הענפי.
 
-**Steps:**
-1. **Open a request** through the chat: say which **wall jack** (e.g. `WJ-042`) and which **classification** you need. If you don't give both, the assistant will ask — it won't guess.
-2. The system checks it's allowed — notably **HC-NET-1**: you may hold at most **one port per classification** (so one Civilian, one Global, one Secret, one Top-Secret — not two of the same).
-3. A ticket opens. You can ask for its status any time.
-4. The **network manager** physically patches the jack and then **resolves the ticket** — only at that point is the connection recorded and the port marked connected to you.
+## חיבור עמדה לרשת (פן טכני)
 
-**Notes:** a jack has no classification until it's patched — the level you ask for
-lives on the request. You can't pick a port that's already in use; the manager
-connects you to a free one of the requested classification.
+החיבור הפיזי של עמדה לרשת מתבצע על ידי **אחראי הרשת** בלבד — חיבור נקודת קיר (Wall Jack) לפורט בסיווג המתאים (אזרחי / גלובל / סודי / סודי ביותר):
+
+- **אסור** לחבר מחשב כלשהו לפורט ללא אישור אחראי הרשת (ראו נהלי בטחון מידע — `04-infosec`).
+- בקשת חיבור נפתחת כפנייה (טיקט) דרך הצ'אט: יש לציין את **נקודת הקיר** ואת **הסיווג** המבוקש. המערכת לא "תנחש" פרטים חסרים — היא תשאל.
+- כל משרת רשאי להחזיק לכל היותר **פורט אחד מכל סיווג**.
+- אחראי הרשת מבצע את החיבור בפועל ורק אז סוגר את הפנייה — באותו רגע נרשם החיבור והפורט מסומן כמחובר למשרת.

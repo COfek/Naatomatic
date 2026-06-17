@@ -1,18 +1,16 @@
-# Before you go on a guard shift — your readiness "debts"
+# כשירות לפני משמרת — ה"חובות" שלך
 
-> The 6-month range rule is real. **The SmartBase URL and the weapon-safety file path below are placeholders — replace with the real ones.**
+על כל אדם לוודא **לפני משמרת** כי ברשותו:
+1. **פנקס מטווחים בתוקף**, ו-
+2. **בוחן בטיחות בנשק בתוקף**.
 
-To be **fit for guard duty** (week-long and single-day shifts, which are armed),
-you must be **range-qualified**: complete shooting-range training **once every 6
-months**. This is enforced — if your qualification is missing or older than 6
-months, the scheduler **will not assign you** a guard shift until you renew.
-(SUPPORT standby and ad-hoc missions don't require it.)
+**התוקף הוא חצי-שנתי** — יש לחדש את ההכשרה אחת לשישה חודשים.
 
-**What you need to do:**
-1. **Read the weapon-safety instructions** — see the attached file: `resources/weapon-safety-instructions.pdf`.
-2. **Complete the short safety test** in SmartBase: <https://smartbase.example.mil/weapon-safety-test> — it confirms you know the safe-handling rules.
-3. **Attend the range training** within the 6-month window.
+> כשירות זו נדרשת לתורנויות שמירה (שמירה שבועית ושמירה יומית/לילית, שהן חמושות). המערכת **אוכפת** זאת: משרת ללא כשירות מטווח בתוקף (מעל חצי שנה או חסרה) **לא ישובץ** לתורנות שמירה עד לחידוש. שמירת SUPPORT (מענה לפניות לקוחות, לא חמושה) ומשימות מתפרצות אינן דורשות כשירות זו.
 
-Ask the assistant *"am I cleared for guard duty?"* and it will tell you whether
-your range qualification is currently valid and, if not, how long ago it lapsed
-and the steps above to fix it.
+## איך לחדש / להשלים
+1. יש לקרוא את **הוראות הבטיחות בנשק** — ראו הקובץ המצורף `resources/weapon-safety-instructions.pdf`.
+2. יש להשלים את **בוחן הבטיחות בנשק** באפליקציית **SmartBase**: <https://smartbase.example.mil/weapon-safety-test> (כתובת זמנית — להחלפה בכתובת האמיתית).
+3. יש להשתתף באימון המטווח בתוך חלון ה-6 חודשים.
+
+ניתן לשאול את העוזר: *"האם אני כשיר לתורנות שמירה?"* — והוא ידווח אם כשירות המטווח שלך בתוקף, וכמה זמן עבר אם פגה, ואת השלבים לחידוש.

@@ -52,7 +52,8 @@ Naatomatic/
 │
 ├── knowledge/               static markdown the General Knowledge agent serves
 │   ├── 01-branch-intro.md   02-open-closed-networks.md  03-shift-readiness.md
-│   └── 04-infosec.md        05-fairness-explained.md
+│   ├── 04-infosec.md        05-fairness-explained.md    06-roles-and-responsibilities.md
+│   └── 07-site-and-general-procedures.md
 │
 ├── services/                cross-cutting infrastructure
 │   ├── llm.py               LLM client wrapper (model ids, structured output, retries)

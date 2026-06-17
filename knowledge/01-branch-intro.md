@@ -1,18 +1,34 @@
-# The CombatAI branch — introduction
+# ענף 300 (CombatAI) — הקדמה ומבנה
 
-> **DRAFT placeholder — replace with the branch's real content.** The text below is an example; the agent will answer from whatever real material you put here.
+## כללי
 
-CombatAI is a software branch. Day-to-day operations are managed by **Naatomatic**,
-an assistant you reach through chat. It covers four operational areas plus this
-help desk:
+ענף CombatAI, המכונה גם ענף 300, הוא ענף המתמחה בעולמות ה-Data ומשמש כמאגר המידע המבצעי של זרוע היבשה. הענף אמון על אחסון, ארגון, נירמול והנגשה של כלל המידע השייך לזרוע היבשה — מידע אשר יכול להגיע ממערכות שליטה ובקרה, מערכות הגנה, מערכות תקשורת ואמצעי לחימה שונים ומגוונים.
 
-- **Network** — connecting workstations to the branch networks (Civilian, Global, Secret, Top-Secret).
-- **Logistics** — computers and monitors: requesting, drawing, returning, and tracking equipment.
-- **Guard Duty & Support** — guard shifts (week-long / single-day), 24/7 customer-support standby, and ad-hoc missions, shared fairly via the "Justice Table."
-- **AdHoc missions** — short-notice tasks (ceremonies, memorials, volunteering).
-- **General Knowledge (this desk)** — explains how the system works and walks you through branch procedures.
+לצד היותו של הענף מאגר המידע המבצעי של הזרוע, הענף משמש גם כספק שירותי AI מגוונים המשמשים את כלל כוחות זרוע היבשה.
 
-You can ask, in plain language, things like: *"open a network ticket,"*
-*"what's the status of my request,"* *"what are my shifts,"* *"am I cleared for
-guard duty,"* or *"who leads the Network team."* Managers can do more within their
-area (resolve tickets, assign shifts).
+יש לציין כי הענף הינו תוצר של שיתוף פעולה מתמשך בין חברת אלביט לבין צה"ל.
+
+## מבנה הענף
+
+בראש הענף עומד רע"ן 300, מפקד בדרגת סגן אלוף, האחראי על אוסף המדורים הבאים:
+
+### מדור 1 — מדור הגנת גבולות
+מדור Data Science ו-Data Engineering, שבמסגרתו אוגרים, מסדרים, מנרמלים ומנגישים מידע ממערכות הנמצאות בגבולות המדינה, למטרות הגנת גבולות. על המדור מפקד בדרגת רב-סרן, ותחתיו פועלים שלושה צוותים:
+- צוות פיקסל
+- צוות טרמינוס
+- צוות Nightwatch
+
+### מדור 2 — מדור בינה מבצעית לתמרון
+מדור Data Science, Data Engineering ו-Data Analytics, שבמסגרתו אוגרים, מסדרים, מנרמלים ומנגישים מידע מבצעי המגיע ממערכות שליטה ובקרה המשמשות כוחות לוחמים במהלך תמרון. על המדור מפקד בדרגת רב-סרן, ותחתיו פועלים ארבעה צוותים:
+- צוות אקינטור
+- צוות אקסיס
+- צוות פלאש
+- צוות פולאריס
+
+### מדור 3 — מדור תשתיות
+מדור העוסק בעיקר בעולמות ה-Data Engineering, DevOps ו-Fullstack. מטרת המדור היא לספק שירותי תשתית לכלל הענף — בין אם בתחומי ה-Data, בין אם בתחומי ה-DevOps, ובין אם באפשרות הנגשה ויזואלית של המידע במפעל (באמצעות צוות ה-Fullstack). על המדור מפקד בדרגת רב-סרן, ותחתיו פועלים שלושה צוותים:
+- צוות מריו
+- צוות סוניק
+- צוות אטמוס
+
+> פירוט ראשי הצוותים ופרטי הקשר שלהם זמין דרך שאילתת "מבנה הענף" (מבוסס-נתונים, נשלף בזמן אמת). רשימת בעלי התפקידים הענפיים — ראו `06-roles-and-responsibilities`.

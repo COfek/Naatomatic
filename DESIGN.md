@@ -621,7 +621,7 @@ details, readiness), and **served resources** (files, links).
 - **Plus: explain the mechanics** — fairness/balancing (Justice Table, burden pools, carryover), eligibility rules, equipment & computer lifecycles, the ticket flow — in plain language, including *"why was I / wasn't I picked for this shift?"*. *(knowledge doc + DB read)*
 
 ### Knowledge base
-Static markdown under **`knowledge/`** (decided): `01-branch-intro`, `02-open-closed-networks`, `03-shift-readiness`, `04-infosec`, `05-fairness-explained`. The agent retrieves the relevant doc and explains it. Reference resources (the weapon-safety file, the **SmartBase** test URL `SMARTBASE_TEST_URL`) are served as links/attachments.
+Static markdown under **`knowledge/`** (real branch content): `01-branch-intro` (Branch 300 general + structure), `02-open-closed-networks` (user form + network process), `03-shift-readiness` (range booklet + weapon-safety test, half-yearly), `04-infosec` (נהלי בטחון מידע), `05-fairness-explained` (derived from the design), `06-roles-and-responsibilities` (branch role-holders), `07-site-and-general-procedures` (Elbit site security + general procedures). Policy text is kept verbatim (Hebrew). The agent retrieves the relevant doc and explains it (HE/EN). Reference resources (the weapon-safety file, the **SmartBase** test URL `SMARTBASE_TEST_URL`) are served as links/attachments — both still placeholders.
 
 ### Capabilities (agent tools — all read-only)
 - `explain(topic)` — retrieve + explain a knowledge doc or a system mechanic.

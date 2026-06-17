@@ -1,23 +1,28 @@
 # Knowledge base
 
-Reference content served and explained by the **General Knowledge Agent** (§ in
-DESIGN.md). These are static markdown docs — easy to edit and version. The agent
-retrieves the relevant doc, explains it in plain language, and serves any linked
-files/URLs.
+Reference content served and explained by the **General Knowledge Agent** (§7.5 in
+DESIGN.md). Static markdown — easy to edit, version in git. The agent retrieves the
+relevant doc, explains it (in Hebrew or English), and serves any linked files/URLs.
 
-| Doc | Covers |
-|-----|--------|
-| `01-branch-intro.md` | What the CombatAI branch is (intro) |
-| `02-open-closed-networks.md` | How to open a user to the closed networks |
-| `03-shift-readiness.md` | Pre-shift "debts": range qualification + weapon-safety test |
-| `04-infosec.md` | Information security — what NOT to do in the office |
-| `05-fairness-explained.md` | Balancing & fairness mechanics, in plain language |
+Policy/procedure text is kept **verbatim (Hebrew)** so the official wording isn't
+distorted in paraphrase.
 
-Branch **structure** (departments/teams/leaders) and a person's **own details**
-are data-backed (read live from the DB), not static docs.
+| Doc | Covers | Source |
+|-----|--------|--------|
+| `01-branch-intro.md` | Branch 300 (CombatAI): general + structure (מדורים/צוותים) | branch content |
+| `02-open-closed-networks.md` | Opening a user to the classified networks (user form + network process) | נהלים §3.3 |
+| `03-shift-readiness.md` | Pre-shift readiness: range booklet + weapon-safety test (half-yearly) | נהלים §3.2 |
+| `04-infosec.md` | Information-security rules (נהלי בטחון מידע) | נהלים §1 |
+| `05-fairness-explained.md` | Balancing & fairness mechanics, plain language | derived from design |
+| `06-roles-and-responsibilities.md` | Branch role-holders + staff list | בעלי תפקידים |
+| `07-site-and-general-procedures.md` | Elbit site security + general procedures | נהלים §2 + §3 |
 
-> **Status: the content here is placeholder/draft** (except `05-fairness-explained`,
-> which is derived from the system design). The agent answers *from* these docs, so
-> replace them with the branch's real material — intro, procedures, the actual
-> SmartBase URL + weapon-safety file, and the real infosec policy. If a topic has no
-> real content, the agent says it doesn't have the information rather than inventing it.
+**Data-backed (not docs):** the live "branch structure" query (teams, **leaders +
+contacts**) and a person's **own details** read from the database (`OrgUnit`,
+`Personnel`).
+
+**Still placeholder:** in `03`, the **SmartBase URL** and the **weapon-safety file**
+are placeholders — swap in the real ones. Everything else is real branch content.
+
+Per the no-fabrication rule: if a topic has no content here, the agent says it
+doesn't have the information rather than inventing it.
