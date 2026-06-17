@@ -248,6 +248,10 @@ payload = { "wall_jack_id": <id>, "desired_classification": "CIVILIAN|GLOBAL|SEC
 
 **Mapping updates are resolution-driven.** The WallJack→Port mapping (and the port's `allocated_to`) is updated **only when the network manager resolves the connection ticket** — never automatically on ticket creation. Flow: requester opens a `NETWORK_REQUEST` → manager physically patches → manager resolves the ticket → resolution writes the WallJack/Port changes.
 
+**Release / disconnect (decided).** A `release_port` action frees a port: `CONNECTED → DISCONNECTED`, clear `allocated_to`, and unpatch the jack (`WallJack.port_id = null`). It writes an `AuditLog` entry (NET-4). This is the network counterpart to returning equipment.
+
+**Leaver cleanup (decided).** When a person is deactivated (`active = false`), their holdings are automatically reclaimed in one step: **all their `CONNECTED` ports are released** (above) **and all their signed equipment is returned** to inventory (computers → `READY_TO_USE`, monitors unsigned; `signed_to` cleared, recorded as transfers). This runs as part of the deactivation action, with a **daily maintenance sweep** (§14) as a backstop so no inactive person is left holding ports or equipment.
+
 ---
 
 ## 5. Pillar 2 — Logistics Operations Agent
@@ -650,7 +654,7 @@ A focused review found the Network pillar thinner than Logistics. Fixed in this 
 
 - **NET-1 — Network ticket payload [MED]. ✓ RESOLVED.** A `NETWORK_REQUEST` carries `payload = {wall_jack_id, desired_classification}` (the soldier specifies the jack and the level they want). See §4 "Network request payload". The generator now populates it.
 - **NET-2 — Port states [MED]. ✓ RESOLVED.** A port is **binary**: `CONNECTED` or `DISCONNECTED`. The `DISABLED` state is removed — there is no "out of order" port status. `count_free_ports` simply counts `DISCONNECTED` ports.
-- **NET-3 — Release / disconnect + leaver cleanup [MED, decision].** No flow frees a port. When a person goes inactive, their ports should be released (analogous to equipment return). Define `release_port` semantics and the leaver rule.
+- **NET-3 — Release / disconnect + leaver cleanup [MED]. ✓ RESOLVED.** `release_port` frees a port (`CONNECTED → DISCONNECTED`, clear `allocated_to`, unpatch the jack). On deactivation (`active = false`), leaver cleanup auto-releases all the person's ports **and** returns their signed equipment to inventory, with a daily maintenance sweep as backstop (see §4 + §14). *(Build-time: the actual release/return code lands with the tools/repository.)*
 - **NET-4 — Port allocation history [LOW, decision].** Network has no movement trail (Logistics has EquipmentTransfer + AuditLog). Decide whether port allocate/release/re-patch should be logged (recommend: at least AuditLog rows).
 - **NET-5 — Switch/port decommission [LOW, decision].** No path to retire a switch or port. Probably fine to defer; confirm.
 - **NET-6 — Resolution-driven mapping unbuilt [build-time].** `resolved_port_id` and the allocate-on-resolve flow are specified (§3/§4) but unimplemented; the generator currently produces RESOLVED network tickets with no port link. Build with the Network tools (the `resolve_ticket` flow already covers the logic).
@@ -669,6 +673,7 @@ The system is chat-only and local — there is **no background clock**. Anything
 |------|--------|
 | **Formatting completion** | Each computer whose Formatting-Calendar slot `end_date` has passed and is still `FORMATTING`: if `reserved_for` is set → `READY_FOR_PICKUP` (someone is waiting to collect it); otherwise → `READY_TO_USE` (straight into storage — e.g. intake of a new computer). Custody stays with the depot until collected/used. |
 | **Shift / mission completion** | Each `Shift` / `AdHocMission` with `end_date` in the past and status `ASSIGNED` → `COMPLETED`. (Nothing flips these otherwise.) |
+| **Leaver cleanup (backstop)** | Any **inactive** person (`active = false`) still holding `CONNECTED` ports or signed equipment → release the ports and return the equipment to inventory (records audit/transfer rows). Normally done at deactivation; this sweep is the safety net. |
 | **Keva year reset** | On a new calendar year, for each Keva member: set `week_long_carryover = week_long_count − 2` and `single_day_carryover = single_day_count − 4` (**signed** — positive = surplus reduces next year, negative = shortfall increases it), reset the counts to 0, and re-anchor `period_start` to Jan 1. Subject to the impossible-debt guard (no shortfall accrues when the duty flag is off) — see HC-GD-4 / R2-4. |
 
 **Trigger (decided):** run the routine **on app startup, guarded to once per day** (compare a stored "last maintenance date" to today). No external scheduler required for the local deployment. Optionally, Windows Task Scheduler can also run `scripts/maintenance.py` daily — but the startup guard makes the system self-sufficient.
