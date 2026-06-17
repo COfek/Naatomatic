@@ -213,8 +213,15 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 
 > **Classification is derived, not stored.** A wall jack inherits the classification of the port it's patched to (`port.classification`, via `port_id`). We deliberately do *not* duplicate it on WallJack to avoid the two drifting out of sync — the port/switch owns the classification. An **unconnected** jack (`port_id = null`) has no classification; that's expected, not an error.
 
+### Network request payload (decided)
+A `NETWORK_REQUEST` ticket must specify **both**: the **wall jack** to connect and the **desired classification** (the soldier asks for, e.g., a SECRET connection at jack WJ-042). These live in the ticket's `payload`, because an unconnected jack has no classification of its own until it's patched:
+```
+payload = { "wall_jack_id": <id>, "desired_classification": "CIVILIAN|GLOBAL|SECRET|TOP_SECRET" }
+```
+(For symmetry, an `EQUIPMENT_REQUEST` payload carries `{ "kind", "classification"? }`.) On resolution, the manager patches that jack to a port of the requested classification and the port is allocated to the requester (validated by HC-NET-1).
+
 ### Capabilities (agent tools)
-- `create_network_request(personnel, wall_jack, classification)` — open a ticket.
+- `create_network_request(personnel, wall_jack, desired_classification)` — open a ticket (payload above).
 - `get_ticket_status(ticket_id)` / `list_my_tickets(personnel)`.
 - `allocate_port(personnel, port)` — validated by engine.
 - `release_port(port)`.
@@ -630,7 +637,7 @@ A structured review (design holes, code correctness, design↔code consistency, 
 ### Network agent gaps (round-2 review)
 A focused review found the Network pillar thinner than Logistics. Fixed in this round: the duplicated Audit Log section; the `Port.wall_jack_id`/`WallJack.port_id` mismatch (now single, unique link); **HC-NET-2** (port status/allocation consistency) added and checked; HC-NET-1 now counts only OCCUPIED ports. Remaining:
 
-- **NET-1 — Network ticket payload [MED, decision].** A `NETWORK_REQUEST` doesn't capture *what* is asked — which wall-jack and which **desired classification**. A jack's classification is null until patched, so the requested level needs a home (recommend a typed `payload`, e.g. `{wall_jack_id, desired_classification}`).
+- **NET-1 — Network ticket payload [MED]. ✓ RESOLVED.** A `NETWORK_REQUEST` carries `payload = {wall_jack_id, desired_classification}` (the soldier specifies the jack and the level they want). See §4 "Network request payload". The generator now populates it.
 - **NET-2 — `DISABLED` port semantics [MED, decision].** When is a port DISABLED (faulty/reserved/decommissioned?), who sets it, and is it excluded from `count_free_ports`? Currently defined but never used.
 - **NET-3 — Release / disconnect + leaver cleanup [MED, decision].** No flow frees a port. When a person goes inactive, their ports should be released (analogous to equipment return). Define `release_port` semantics and the leaver rule.
 - **NET-4 — Port allocation history [LOW, decision].** Network has no movement trail (Logistics has EquipmentTransfer + AuditLog). Decide whether port allocate/release/re-patch should be logged (recommend: at least AuditLog rows).

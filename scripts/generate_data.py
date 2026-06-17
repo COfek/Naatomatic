@@ -139,6 +139,7 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
     # Allocate some ports, respecting HC-NET-1 (<=1 port per classification per person).
     used_class_by_person: dict[int, set] = {p.id: set() for p in real_people}
     wall_jack_count = 0
+    wall_jacks: list[m.WallJack] = []
     for port, classification in all_ports:
         if random.random() < 0.4:
             eligible = [
@@ -151,19 +152,19 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
                 port.allocated_to = holder.id
                 used_class_by_person[holder.id].add(classification)
                 wall_jack_count += 1
-                session.add(
-                    m.WallJack(
-                        label=f"WJ-{wall_jack_count:03d}",
-                        room=f"Room {random.randint(100, 399)}",
-                        port_id=port.id,
-                    )
+                wj = m.WallJack(
+                    label=f"WJ-{wall_jack_count:03d}",
+                    room=f"Room {random.randint(100, 399)}",
+                    port_id=port.id,
                 )
+                wall_jacks.append(wj)
+                session.add(wj)
     # A few unconnected wall jacks too.
     for _ in range(max(1, num_personnel // 10)):
         wall_jack_count += 1
-        session.add(
-            m.WallJack(label=f"WJ-{wall_jack_count:03d}", room=f"Room {random.randint(100, 399)}", port_id=None)
-        )
+        wj = m.WallJack(label=f"WJ-{wall_jack_count:03d}", room=f"Room {random.randint(100, 399)}", port_id=None)
+        wall_jacks.append(wj)
+        session.add(wj)
     session.flush()
 
     # --- Logistics: equipment ---
@@ -249,15 +250,26 @@ def generate(session, num_personnel: int, fake: Faker) -> None:
     for _ in range(max(3, num_personnel // 3)):
         ttype = random.choice(list(TicketType))
         requester = random.choice(real_people)
+        if ttype == TicketType.NETWORK_REQUEST:
+            # NET-1: a network request specifies the wall jack and desired classification.
+            subject = "Connect workstation"
+            payload = {
+                "wall_jack_id": random.choice(wall_jacks).id,
+                "desired_classification": random.choice(list(Classification)).value,
+            }
+        else:
+            subject = "Draw equipment"
+            payload = {
+                "kind": random.choice(list(EquipmentKind)).value,
+                "classification": random.choice(list(Classification)).value,
+            }
         session.add(
             m.Ticket(
                 type=ttype,
                 requester_id=requester.id,
                 status=random.choice(list(TicketStatus)),
-                subject=(
-                    "Connect new workstation" if ttype == TicketType.NETWORK_REQUEST
-                    else "Draw equipment"
-                ),
+                subject=subject,
+                payload=payload,
                 description=fake.sentence(),
             )
         )
