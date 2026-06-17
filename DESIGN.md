@@ -85,6 +85,15 @@ We build on a standard agentic-node taxonomy, adopting only the nodes our flows 
 
 **Validator placement (important):** the hard-constraint logic lives in the **service layer** (so tools/repository can never be bypassed). The Validator node is a thin pre-commit gate that calls that same logic. Single source of truth, enforced regardless of how an action arrives. This is the concrete implementation of the "agent proposes, engine decides" boundary above.
 
+### No fabricated arguments — ask, don't guess
+A core behavior rule for the **Worker**: the model must **never invent required tool arguments.** If the user's request is missing a needed detail — *which* wall jack, *which* classification, *which* catalog number, *which* person, *which* dates — the agent **asks a follow-up question** and waits, rather than filling in a plausible-looking value. Example: "connect my workstation" with no jack/level given → the agent replies *"Which wall jack, and which classification (Civilian/Global/Secret/Top-Secret)?"* — it does not pick one.
+
+Enforced at **two layers** (defense in depth):
+1. **Prompt-level** — the Worker's system prompt forbids guessing required inputs and instructs it to gather missing details first; tool schemas mark which arguments are required.
+2. **Tool/validator backstop** — tools **validate every reference**: the `wall_jack_id` must resolve to a real jack, `desired_classification` must be a valid enum, a `catalog_number`/`personal_number` must exist. An invented or non-existent value is **rejected** (a clear error the agent surfaces / asks about), never acted on. This catches hallucinations the prompt missed — same spirit as "agent proposes, engine validates."
+
+This applies to **every pillar's tools**, not just network requests.
+
 ---
 
 ## 3. Core Domain Model
@@ -219,6 +228,8 @@ A `NETWORK_REQUEST` ticket must specify **both**: the **wall jack** to connect a
 payload = { "wall_jack_id": <id>, "desired_classification": "CIVILIAN|GLOBAL|SECRET|TOP_SECRET" }
 ```
 (For symmetry, an `EQUIPMENT_REQUEST` payload carries `{ "kind", "classification"? }`.) On resolution, the manager patches that jack to a port of the requested classification and the port is allocated to the requester (validated by HC-NET-1).
+
+> The agent must **obtain both values from the requester** — if the soldier didn't say which jack or which classification, the agent **asks** rather than guessing (see §2 "No fabricated arguments"). The tool also validates that the jack exists and the classification is a real level.
 
 ### Capabilities (agent tools)
 - `create_network_request(personnel, wall_jack, desired_classification)` — open a ticket (payload above).
