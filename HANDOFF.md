@@ -54,9 +54,12 @@ For raw table browsing, open `naatomatic.db` in **DB Browser for SQLite**
 - **`data/generation/`** — `generate_data.py` (valid random data, respects all rules) + `inspect_data.py`.
 - **`scripts/`** — `verify.py`, `dashboard.py`.
 - **`tests/`** — `conftest.py` (in-memory seeded fixture) + `unit/` smoke tests (passing); `tools/` + `agents/` are placeholders.
-- **`knowledge/`** — markdown the General Knowledge agent will serve (4 docs are **DRAFT placeholders** to replace with real branch content; `05-fairness-explained` is authoritative).
+- **`knowledge/`** — **real** branch content the General Knowledge agent serves (Hebrew, verbatim policy): `00-glossary` (Hebrew↔system-ID map), `01`-intro, `02`-open-networks, `03`-shift-readiness, `04`-infosec, `05`-fairness (derived from design), `06`-roles, `07`-site-procedures. Only the SmartBase/Kitbag URLs are real; `resources/weapon-carry-permit.md` is a **mock** file.
+- **`models/`** also has `OrgUnit` (real Branch-300 departments/teams are seeded) + Personnel `team_id`/`phone`/`email`/`last_range_qualification` + `EquipmentItem.handover_pending` (Kitbag).
 
-Everything above is green: 12/12 constraints pass, `pytest` 3 passed / 2 skipped.
+Everything above is green: 12/12 constraints pass, `pytest` 3 passed / 2 skipped. All
+five agents (Network, Logistics, Guard Duty, AdHoc, General Knowledge) are **designed**
+in `DESIGN.md`; the data/rules/knowledge for them exist, the agent *code* does not yet.
 
 ## 4. What's DESIGNED but NOT built yet (the actual agent)
 
@@ -76,15 +79,18 @@ Build **one pillar end-to-end** to establish the pattern — **Logistics** is th
 self-contained, and it exercises the repository + tools + validator + the ticket
 resolution flow (and knocks out R2-9 + the status-transition guard). Order:
 1. `data/services/` repository for logistics (transactional, writes audit/transfer).
-2. `tools/logistics_tools.py` — `create_equipment_request`, `resolve_ticket`, `sign`/`return`, `set_equipment_status`/`decommission_item` (with the §5 transition guard), all validated by `rules/`.
+2. `tools/logistics_tools.py` — `create_equipment_request`, `resolve_ticket` (incl. the **Kitbag two-step handover** — set `handover_pending`, then recipient confirms), `sign`/`return`, `set_equipment_status`/`decommission_item` (with the §5 transition guard), all validated by `rules/`.
 3. `tests/tools/` — hard-coded accept + reject path tests against the in-memory fixture.
 4. Then wire it into the agent node graph.
 
-## 6. Open decisions still pending (small)
+## 6. Open decisions
 
-- **AdHoc-for-Keva** (`DESIGN.md` §7 ❓OPEN) — recommendation noted: assignable to both, burden-tracked for Keva but outside the 2/4 quota. Confirm.
-- **Knowledge content** — replace the 4 draft docs in `knowledge/` with real branch material (intro, procedure, infosec) + the real SmartBase URL and weapon-safety file.
-- **R2-5** — HC-GD-1/2 are end-of-year *targets* (enforced by the scheduler's planning), not snapshot invariants; tighten HC-GD-3 when the carryover code is built.
+**All design decisions are closed.** (AdHoc-for-Keva, the `שמור` classification
+question, the role list, the knowledge content, the SmartBase/Kitbag URLs — all
+resolved.) The only remaining items are **build-time code**, not decisions:
+- **R2-5** — HC-GD-1/2 are end-of-year *targets* (enforced by the scheduler's planning), not snapshot invariants; tighten HC-GD-3 when the carryover code (R2-6) is built.
+- **R2-9 / R2-8 / R2-6** — audit+transfer writes, the status-transition guard, and the carryover/year-reset math — all land with the repository/tools/maintenance code.
+- *(Optional)* the `resources/weapon-carry-permit.md` is a mock — swap for the real document if/when available.
 
 ## 7. Conventions to keep in mind
 
