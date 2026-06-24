@@ -1,4 +1,4 @@
-"""Guard Duty + Support pillar tools — STUBS. Owns shifts, the Justice Table,
+"""Guard Duty + Support domain tools — STUBS. Owns shifts, the Justice Table,
 constraints (date-blocks), and the quarterly SUPPORT roster. Implement following
 the Logistics reference; assignment validates HC-GD-0/3/5/6/7/9 and balances per
 SC-GD-1/2/3/4/5.

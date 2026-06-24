@@ -1,4 +1,4 @@
-"""Worker node — STUB. The ReAct step: given the transcript + the pillar's tools,
+"""Worker node — STUB. The ReAct step: given the transcript + the domain's tools,
 the model either emits a tool call (-> state["tool_to_call"]) or a final answer
 (-> state["final_answer"]). Must NOT fabricate args — ask the user instead (DESIGN §2).
 Increments state["turn"]. (LLM via runtime.llm.call_with_tools.)"""

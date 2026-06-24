@@ -1,6 +1,6 @@
-"""Tool registry — the single catalog of all pillar tools.
+"""Tool registry — the single catalog of all domain tools.
 
-Aggregates each pillar's `TOOLS` / `MUTATING` into one namespace. Both the
+Aggregates each domain's `TOOLS` / `MUTATING` into one namespace. Both the
 in-process Tool Executor (agents/nodes/tool_executor.py) and the MCP server
 (mcp/server.py) build on this — so tools are written **once** as plain functions
 and exposed either way.
@@ -21,9 +21,9 @@ from tools import (
 )
 from tools.base import ToolContext, ToolOutput, args_model, tool_spec
 
-# Pillar name -> its module (used for routing: the Router picks a pillar,
-# the Worker is offered that pillar's tools).
-PILLARS = {
+# Domain name -> its module (used for routing: the Router picks a domain,
+# the Worker is offered that domain's tools).
+DOMAINS = {
     "network": network_tools,
     "logistics": logistics_tools,
     "guard_duty": guard_duty_tools,
@@ -33,22 +33,22 @@ PILLARS = {
 
 TOOLS_BY_NAME: dict[str, Callable[..., ToolOutput]] = {}
 MUTATING: set[str] = set()
-PILLAR_OF: dict[str, str] = {}
+DOMAIN_OF: dict[str, str] = {}
 
-for _pillar, _mod in PILLARS.items():
+for _domain, _mod in DOMAINS.items():
     for _fn in _mod.TOOLS:
         if _fn.__name__ in TOOLS_BY_NAME:
-            raise RuntimeError(f"Duplicate tool name across pillars: {_fn.__name__}")
+            raise RuntimeError(f"Duplicate tool name across domains: {_fn.__name__}")
         TOOLS_BY_NAME[_fn.__name__] = _fn
-        PILLAR_OF[_fn.__name__] = _pillar
+        DOMAIN_OF[_fn.__name__] = _domain
     MUTATING |= set(_mod.MUTATING)
 
 SPECS: list[dict] = [tool_spec(fn) for fn in TOOLS_BY_NAME.values()]
 
 
-def specs_for(pillar: str) -> list[dict]:
-    """Tool specs for one pillar (what the Router exposes to that pillar's Worker)."""
-    return [tool_spec(fn) for n, fn in TOOLS_BY_NAME.items() if PILLAR_OF[n] == pillar]
+def specs_for(domain: str) -> list[dict]:
+    """Tool specs for one domain (what the Router exposes to that domain's Worker)."""
+    return [tool_spec(fn) for n, fn in TOOLS_BY_NAME.items() if DOMAIN_OF[n] == domain]
 
 
 def call_tool(ctx: ToolContext, name: str, **args) -> ToolOutput:

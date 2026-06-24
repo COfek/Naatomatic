@@ -1,4 +1,4 @@
-"""TEMPLATE — every deployed pillar agent ships a file like this in tests/agents/.
+"""TEMPLATE — every deployed domain agent ships a file like this in tests/agents/.
 
 It has two parts (see IMPLEMENTATION_GUIDE.md "Testing"):
 
@@ -7,14 +7,14 @@ It has two parts (see IMPLEMENTATION_GUIDE.md "Testing"):
    can see the final text answer the agent produces.
 
 Copy this into e.g. tests/agents/test_logistics_agent.py and fill in QUESTIONS +
-your pillar's assertions. Keep it skipped (or guard on an API key) so CI without a
+your domain's assertions. Keep it skipped (or guard on an API key) so CI without a
 model key stays green; run it locally to eyeball answers.
 
     from services.agent_runtime import AgentRuntime
     from services.auth import authenticate
     from agents.orchestrator import run
 
-    # Natural-language questions that should reach THIS pillar's agent:
+    # Natural-language questions that should reach THIS domain's agent:
     QUESTIONS = [
         "Sign monitor CAT-1023 to person 7",          # action -> assert DB change
         "How many free secret ports are there?",       # info   -> eyeball the answer

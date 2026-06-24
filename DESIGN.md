@@ -8,9 +8,9 @@
 
 ## 1. Overview
 
-Naatomatic is an autonomous, AI-agent-based system for managing and optimizing daily operations within the **CombatAI** branch. It spans three operational pillars and enforces base/branch regulations as hard constraints, while giving personnel transparency into their open tickets and the fair distribution of operational burden.
+Naatomatic is an autonomous, AI-agent-based system for managing and optimizing daily operations within the **CombatAI** branch. It spans three operational domains and enforces base/branch regulations as hard constraints, while giving personnel transparency into their open tickets and the fair distribution of operational burden.
 
-### Pillars
+### Domains
 1. **Network Infrastructure** — physical/logical network state, port allocation, IT tickets.
 2. **Logistics & End-User Equipment** — computers & monitors inventory, equipment requests, transfers.
 3. **Guard Duty Scheduling** — shift allocation with a "Justice Table," split between Keva (career) and Sadir (mandatory service).
@@ -21,7 +21,7 @@ Naatomatic is an autonomous, AI-agent-based system for managing and optimizing d
 - **Hard constraints are enforced at the data/service layer**, not left to the agent's judgment. The LLM agent proposes actions; a deterministic rules engine validates and commits them.
 - **Full auditability** — every allocation, ticket transition, and shift assignment is logged with actor + timestamp.
 - **Transparency** — personnel can query their own ticket status and the Justice Table at any time.
-- **Separation of concerns** — each pillar is an independent agent with its own tools, sharing a common Personnel and Audit core.
+- **Separation of concerns** — each domain is an independent agent with its own tools, sharing a common Personnel and Audit core.
 
 ---
 
@@ -34,7 +34,7 @@ Naatomatic is an autonomous, AI-agent-based system for managing and optimizing d
                                     │ (requests, queries)
                 ┌───────────────────▼──────────────────────┐
                 │           Orchestrator / Router            │
-                │  routes intent → correct pillar agent       │
+                │  routes intent → correct domain agent       │
                 └─┬────────┬────────┬────────┬────────┬───────────┘
                   │        │        │        │        │
         ┌─────────▼┐ ┌─────▼────┐ ┌─▼──────┐ ┌▼──────┐ ┌▼──────────┐
@@ -54,19 +54,19 @@ Naatomatic is an autonomous, AI-agent-based system for managing and optimizing d
 
 **Agent vs. engine boundary:** The agent interprets natural-language requests and decides *what* to attempt. The constraint engine decides whether it is *allowed*. This keeps hard rules reliable and testable independent of model behavior.
 
-**Decided:** Single **orchestrator + router** — the user talks to one entry point, which classifies intent and routes to the correct pillar agent.
+**Decided:** Single **orchestrator + router** — the user talks to one entry point, which classifies intent and routes to the correct domain agent.
 
 ### Node Architecture
 
-We build on a standard agentic-node taxonomy, adopting only the nodes our flows need. Each pillar agent is a ReAct loop (LangGraph) made of these nodes.
+We build on a standard agentic-node taxonomy, adopting only the nodes our flows need. Each domain agent is a ReAct loop (LangGraph) made of these nodes.
 
-**Core nodes (every pillar):**
+**Core nodes (every domain):**
 
 | Node | Type | Role in Naatomatic |
 |------|------|------------------|
-| **Router** | LLM | The orchestrator entry point. Classifies intent → routes to the correct pillar, exposing only that pillar's tools and the user's role-permitted actions. |
+| **Router** | LLM | The orchestrator entry point. Classifies intent → routes to the correct domain, exposing only that domain's tools and the user's role-permitted actions. |
 | **Worker** | LLM | The ReAct reasoning step: interprets the request and decides which tool to call next (or that it's done). |
-| **Tool Executor** | Code | Runs the chosen pillar tool against SQLite. Deterministic, no LLM. |
+| **Tool Executor** | Code | Runs the chosen domain tool against SQLite. Deterministic, no LLM. |
 | **Validator** | Code | **The constraint engine.** Enforces every hard rule (HC-*) — pass/fail, cannot be bypassed. See placement note below. |
 
 **Recommended:**
@@ -81,7 +81,7 @@ We build on a standard agentic-node taxonomy, adopting only the nodes our flows 
 |------|----------------|
 | **Planner** (LLM) | A genuinely multi-step task the ReAct loop handles awkwardly — e.g., "assign the next 4 guard shifts fairly." |
 | **Critic** (LLM) | A need for *subjective* evaluation. Mostly unnecessary: our quality bar is objective (Justice Table + hard constraints), already covered by the Validator. |
-| **Integrator** (LLM) | A cross-pillar query that merges sources — e.g., "everything about soldier X: equipment, ports, shifts." |
+| **Integrator** (LLM) | A cross-domain query that merges sources — e.g., "everything about soldier X: equipment, ports, shifts." |
 | **Summarizer** (LLM) | Long flows needing context/memory compression. Our flows are short; not needed now. |
 
 **Validator placement (important):** the hard-constraint logic lives in the **service layer** (so tools/repository can never be bypassed). The Validator node is a thin pre-commit gate that calls that same logic. Single source of truth, enforced regardless of how an action arrives. This is the concrete implementation of the "agent proposes, engine decides" boundary above.
@@ -93,7 +93,7 @@ Enforced at **two layers** (defense in depth):
 1. **Prompt-level** — the Worker's system prompt forbids guessing required inputs and instructs it to gather missing details first; tool schemas mark which arguments are required.
 2. **Tool/validator backstop** — tools **validate every reference**: the `wall_jack_id` must resolve to a real jack, `desired_classification` must be a valid enum, a `catalog_number`/`personal_number` must exist. An invented or non-existent value is **rejected** (a clear error the agent surfaces / asks about), never acted on. This catches hallucinations the prompt missed — same spirit as "agent proposes, engine validates."
 
-This applies to **every pillar's tools**, not just network requests.
+This applies to **every domain's tools**, not just network requests.
 
 ### Fuzzy reference resolution — "did you mean?"
 When the user **does** give an identifier but it **doesn't exactly match** anything (a mistyped ticket id, catalog number, personal number, jack label, switch name…), the agent must **neither fabricate a match nor hard-fail**. Instead the tool returns the **closest existing candidates** and the agent presents them for the user to choose from.
@@ -114,7 +114,7 @@ This complements "no fabricated arguments": missing → ask; **present-but-not-f
 
 ## 3. Core Domain Model
 
-Shared entities used across pillars.
+Shared entities used across domains.
 
 ### Personnel
 | Field | Type | Notes |
@@ -234,7 +234,7 @@ Append-only. Every mutating action writes one entry: `{ id, actor, action, entit
 
 ---
 
-## 4. Pillar 1 — Network Infrastructure Agent
+## 4. Domain 1 — Network Infrastructure Agent
 
 ### Entities
 
@@ -316,7 +316,7 @@ The end-to-end flow for connecting a workstation — the network twin of the Log
 
 ---
 
-## 5. Pillar 2 — Logistics Operations Agent
+## 5. Domain 2 — Logistics Operations Agent
 
 ### Entities
 
@@ -432,7 +432,7 @@ The end-to-end flow when a soldier wants equipment. Validation happens **twice**
 
 ---
 
-## 6. Pillar 3 — Guard Duty Scheduling Agents
+## 6. Domain 3 — Guard Duty Scheduling Agents
 
 Two distinct scheduling models sharing the **Justice Table**.
 
@@ -611,7 +611,7 @@ It is a **separate agent** (own triggering and lifecycle) but shares the **Justi
 
 ---
 
-## 7.5 Pillar 5 — General Knowledge Agent
+## 7.5 Domain 5 — General Knowledge Agent
 
 A **read-only** help-desk / onboarding agent. It does **not** mutate state — it
 explains how the system works and walks personnel through branch procedures, by
@@ -745,7 +745,7 @@ A single `Calendar` abstraction backs all use cases (guard, ad-hoc, formatting),
 ## 11. Tech Stack
 
 - **Language: Python.** ✓ Decided.
-- **Agent framework: LangChain.** ✓ Decided — orchestrator + per-pillar agents with tool-calling.
+- **Agent framework: LangChain.** ✓ Decided — orchestrator + per-domain agents with tool-calling.
 - **Storage: SQLite** (start here). ✓ Decided.
   - Free, zero-setup (single file, built into Python), fully relational (FKs/constraints this design relies on), and right-sized for a single branch.
   - Migration path: schema moves to **PostgreSQL** with minimal change if we outgrow it (free hosted options: Supabase, Neon).
@@ -800,7 +800,7 @@ A structured review (design holes, code correctness, design↔code consistency, 
 > Note: **SC-GD-1/2** (Sadir balancing + tie-break) are **soft** optimization rules, enforced at *assignment time* by the scheduler — they are correctly **not** in `verify.py` (which checks hard invariants only).
 
 ### Network agent gaps (round-2 review)
-A focused review found the Network pillar thinner than Logistics. Fixed in this round: the duplicated Audit Log section; the `Port.wall_jack_id`/`WallJack.port_id` mismatch (now single, unique link); **HC-NET-2** (port status/allocation consistency) added and checked; HC-NET-1 counts CONNECTED ports; **ports are binary `CONNECTED`/`DISCONNECTED`** (the `DISABLED` state was removed). Remaining:
+A focused review found the Network domain thinner than Logistics. Fixed in this round: the duplicated Audit Log section; the `Port.wall_jack_id`/`WallJack.port_id` mismatch (now single, unique link); **HC-NET-2** (port status/allocation consistency) added and checked; HC-NET-1 counts CONNECTED ports; **ports are binary `CONNECTED`/`DISCONNECTED`** (the `DISABLED` state was removed). Remaining:
 
 - **NET-1 — Network ticket payload [MED]. ✓ RESOLVED.** A `NETWORK_REQUEST` carries `payload = {wall_jack_id, desired_classification}` (the soldier specifies the jack and the level they want). See §4 "Network request payload". The generator now populates it.
 - **NET-2 — Port states [MED]. ✓ RESOLVED.** A port is **binary**: `CONNECTED` or `DISCONNECTED`. The `DISABLED` state is removed — there is no "out of order" port status. `count_free_ports` simply counts `DISCONNECTED` ports.
@@ -846,4 +846,4 @@ The system is chat-only and local — there is **no background clock**. Anything
 
 ---
 
-*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (defer under-served — bidirectional carryover), R2-6 (carryover policy), R2-7 (ticket resolution flow, chat-driven). The daily maintenance routine (§14) and the `resolve_ticket` flow (§3) are fully specified and pending build. Remaining open item: R2-9 (audit/transfer writes — first uses now specified: ticket resolution and decommissioning), best handled while building the Logistics/Network tools. R2-8 (computer state machine incl. the terminal `DECOMMISSIONED` state) is now defined; only the tool-level transition guard remains to build. The project structure template (`PROJECT_STRUCTURE.md`) lays out where each pillar, tool, service, and test will live as we build.*
+*Schema and stack are confirmed (Python + LangChain + SQLAlchemy + SQLite, local, chat-only). Resolved: R2-1 (maintenance routine), R2-2 (HC-GD-7), R2-3 (SUPPORT coverage), R2-4 (defer under-served — bidirectional carryover), R2-6 (carryover policy), R2-7 (ticket resolution flow, chat-driven). The daily maintenance routine (§14) and the `resolve_ticket` flow (§3) are fully specified and pending build. Remaining open item: R2-9 (audit/transfer writes — first uses now specified: ticket resolution and decommissioning), best handled while building the Logistics/Network tools. R2-8 (computer state machine incl. the terminal `DECOMMISSIONED` state) is now defined; only the tool-level transition guard remains to build. The project structure template (`PROJECT_STRUCTURE.md`) lays out where each domain, tool, service, and test will live as we build.*

@@ -26,7 +26,7 @@ Naatomatic/
 │       ├── seed.py          small curated fixtures (known dataset)
 │       └── fixtures/        optional JSON/py fixture data
 │
-├── tools/                   MCP-exposed tools the model calls, grouped per pillar
+├── tools/                   MCP-exposed tools the model calls, grouped per domain
 │   ├── network_tools.py     connect/release port, map wall-jack, count free ports, ...
 │   ├── logistics_tools.py   sign/return equipment, set status, query inventory, ...
 │   ├── guard_duty_tools.py  create/assign shift, suggest assignment, justice table, ...
@@ -38,12 +38,12 @@ Naatomatic/
 │
 ├── agents/                  the node graph (LangGraph) — see DESIGN.md §2
 │   ├── orchestrator.py      builds & runs the graph
-│   ├── router.py            Router node: classify intent → pillar + role scope
+│   ├── router.py            Router node: classify intent → domain + role scope
 │   ├── nodes/               reusable nodes
 │   │   ├── worker.py        Worker (ReAct reasoning step)
 │   │   ├── validator.py     Validator node — calls rules/constraints.py before commit
 │   │   └── presenter.py     Presenter (formats final HE/EN answer)
-│   └── pillars/             per-pillar worker config (system prompts, tool subsets)
+│   └── domains/             per-domain worker config (system prompts, tool subsets)
 │       ├── network.py
 │       ├── logistics.py
 │       ├── guard_duty.py

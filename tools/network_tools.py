@@ -1,4 +1,4 @@
-"""Network pillar tools — STUBS. Implement following tools/logistics_tools.sign_equipment.
+"""Network domain tools — STUBS. Implement following tools/logistics_tools.sign_equipment.
 Mutating tools: apply -> validate (check_hc_net_1/2) -> commit/rollback -> audit.
 """
 

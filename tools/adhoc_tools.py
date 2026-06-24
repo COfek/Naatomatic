@@ -1,4 +1,4 @@
-"""AdHoc Missions pillar tools — STUBS. Shares the Justice Table (shifts pool).
+"""AdHoc Missions domain tools — STUBS. Shares the Justice Table (shifts pool).
 Implement following the Logistics reference.
 """
 

@@ -1,4 +1,4 @@
-"""Reference tool test — the pattern for every pillar's tool tests.
+"""Reference tool test — the pattern for every domain's tool tests.
 
 Covers both paths against the in-memory seeded `session` fixture:
 - accept: a valid sign-out succeeds and the DB reflects it,

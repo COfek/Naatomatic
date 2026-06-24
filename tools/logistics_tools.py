@@ -1,5 +1,5 @@
-"""Logistics pillar tools. `sign_equipment` is the REFERENCE implementation —
-copy its shape for every mutating tool in every pillar.
+"""Logistics domain tools. `sign_equipment` is the REFERENCE implementation —
+copy its shape for every mutating tool in every domain.
 
 Each tool: (1) role-gate, (2) look up entities (err + suggestions if missing),
 (3) apply the change, (4) validate via rules + rollback on violation, (5) record

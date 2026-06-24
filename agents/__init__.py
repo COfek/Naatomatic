@@ -2,7 +2,7 @@
 
 Planned:
   orchestrator.py  builds & runs the graph
-  router.py        Router node (classify intent -> pillar + role scope)
+  router.py        Router node (classify intent -> domain + role scope)
   nodes/           Worker, Validator, Presenter
-  pillars/         per-pillar worker config (prompts, tool subsets)
+  pillars/         per-domain worker config (prompts, tool subsets)
 """

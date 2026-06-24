@@ -1,4 +1,4 @@
-"""General Knowledge pillar tools — STUBS. All READ-ONLY (no MUTATING).
+"""General Knowledge domain tools — STUBS. All READ-ONLY (no MUTATING).
 Serves knowledge/ docs + live DB reads. Strictly self-only for personal data.
 """
 
@@ -31,4 +31,4 @@ def get_resource(ctx: ToolContext, *, name: str) -> ToolOutput[dict]:
 
 
 TOOLS = (explain, get_branch_structure, get_my_details, get_shift_readiness, get_resource)
-MUTATING: set[str] = set()  # read-only pillar
+MUTATING: set[str] = set()  # read-only domain

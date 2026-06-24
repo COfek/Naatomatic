@@ -67,7 +67,7 @@ in `DESIGN.md`; the data/rules/knowledge for them exist, the agent *code* does n
 All of this is scaffolded as empty packages (see `PROJECT_STRUCTURE.md`) — design is
 complete, code is not written:
 - **`data/services/`** — repository layer (the only thing that writes the DB; must auto-write AuditLog + EquipmentTransfer rows — R2-9).
-- **`tools/`** — per-pillar tools the model calls (network, logistics, guard_duty, adhoc, general_knowledge), each: validate (rules) → act (services) → return.
+- **`tools/`** — per-domain tools the model calls (network, logistics, guard_duty, adhoc, general_knowledge), each: validate (rules) → act (services) → return.
 - **`agents/`** — the LangGraph node graph: Router → Worker → Tool Executor → Validator → Presenter.
 - **`services/`** — LLM client, agent runtime, telemetry, auth (login by personal_number, role checks).
 - **`mcp/server.py`** — exposes tools over MCP.
@@ -76,7 +76,7 @@ complete, code is not written:
 
 ## 5. Suggested next step
 
-Build **one pillar end-to-end** to establish the pattern — **Logistics** is the most
+Build **one domain end-to-end** to establish the pattern — **Logistics** is the most
 self-contained, and it exercises the repository + tools + validator + the ticket
 resolution flow (and knocks out R2-9 + the status-transition guard). Order:
 1. `data/services/` repository for logistics (transactional, writes audit/transfer).

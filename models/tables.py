@@ -167,7 +167,7 @@ class AuditLog(Base):
 
 
 # --------------------------------------------------------------------------- #
-# Pillar 1 — Network
+# Domain 1 — Network
 # --------------------------------------------------------------------------- #
 class Switch(Base):
     __tablename__ = "switch"
@@ -211,7 +211,7 @@ class WallJack(Base):
 
 
 # --------------------------------------------------------------------------- #
-# Pillar 2 — Logistics
+# Domain 2 — Logistics
 # --------------------------------------------------------------------------- #
 class EquipmentItem(Base):
     __tablename__ = "equipment_item"
@@ -248,7 +248,7 @@ class EquipmentTransfer(Base):
 
 
 # --------------------------------------------------------------------------- #
-# Pillar 3 — Guard Duty + AdHoc
+# Domain 3 — Guard Duty + AdHoc
 # --------------------------------------------------------------------------- #
 class Shift(Base):
     __tablename__ = "shift"

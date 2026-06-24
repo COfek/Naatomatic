@@ -1,4 +1,4 @@
-"""Shared tool contract — every tool in every pillar uses these.
+"""Shared tool contract — every tool in every domain uses these.
 
 A **tool** is a plain function:
 

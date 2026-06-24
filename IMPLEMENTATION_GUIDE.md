@@ -9,7 +9,7 @@ writing code. The skeleton already compiles and tests pass — fill in the bodie
 ```
 models/        data shapes (tables, enums, db)          ← done
 rules/         constraint engine (HC-* checks)           ← done (12 checks)
-data/services/ repositories: the ONLY writers of the DB  ← base done; per-pillar TODO
+data/services/ repositories: the ONLY writers of the DB  ← base done; per-domain TODO
 tools/         tools the model calls (1 fn = 1 tool)     ← contract + reference done; rest TODO
 services/      llm, agent_runtime, auth, telemetry       ← auth done; rest stub
 agents/        the LangGraph node graph (router→…→present)← wiring done; node bodies TODO
@@ -42,28 +42,28 @@ def sign_equipment(ctx: ToolContext, args: SignEquipmentArgs) -> ToolOutput[dict
 **Repository** = the only DB writer (`data/services/base.py` + `logistics_repo.py`).
 Every mutation records `audit(...)` (and `transfer(...)` for equipment) — that's R2-9.
 
-**Registry + MCP** (`tools/registry.py`): each pillar module exports `TOOLS` (tuple of
+**Registry + MCP** (`tools/registry.py`): each domain module exports `TOOLS` (tuple of
 functions) and `MUTATING` (set of names). The registry aggregates them; the in-process
 executor and the MCP server both call `registry.call_tool(ctx, name, **args)` — so tools
 are written **once**. (Note the `mcp/` folder name clash — see `mcp/server.py`.)
 
-## Work split (by pillar)
+## Work split (by domain)
 
 **First (one person, ~half a day): freeze the core.** Land the agent graph node bodies
 (`agents/nodes/*`), `services/llm.py` + `services/agent_runtime.py`, and confirm the
 contracts above. **Once merged, the contracts are frozen** — changes to `tools/base.py`,
 `data/services/base.py`, `agents/state.py`, or `tools/registry.py` need team sign-off.
 
-**Then, one owner per pillar — each does repo + tools + tests end-to-end:**
-| Dev | Pillar | Files |
+**Then, one owner per domain — each does repo + tools + tests end-to-end:**
+| Dev | Domain | Files |
 |-----|--------|-------|
 | A | **Network** | `data/services/network_repo.py`, `tools/network_tools.py`, `tests/tools/test_network_*.py` |
 | B | **Logistics** | finish `tools/logistics_tools.py` (reference already done), `tests/tools/test_logistics_*.py` |
 | C | **Guard Duty + AdHoc** + `scripts/maintenance.py` | `…/scheduling_repo.py`, `guard_duty_tools.py`, `adhoc_tools.py`, tests |
 | D | **General Knowledge** + **MCP server** + **eval** | `general_knowledge_tools.py` (read-only), `mcp/`, `evaluation/`, tests |
-(Dev D's pillar is read-only/lighter, so they also own MCP + eval. Rebalance as needed.)
+(Dev D's domain is read-only/lighter, so they also own MCP + eval. Rebalance as needed.)
 
-Pillars touch **disjoint files**, so merge conflicts are rare. Shared files (models,
+Domains touch **disjoint files**, so merge conflicts are rare. Shared files (models,
 rules, base, registry, state) change only by coordination.
 
 ## Rules everyone follows
@@ -79,7 +79,7 @@ rules, base, registry, state) change only by coordination.
 - **Never commit** `naatomatic.db`, `dashboard.html`, `.venv` (already git-ignored).
 
 ## Testing (required — every deployed agent ships BOTH)
-Each pillar agent must come with two kinds of runnable tests:
+Each domain agent must come with two kinds of runnable tests:
 1. **Tool-call unit tests** (`tests/tools/`) — deterministic, **no model in the loop**.
    Call the tool with fixed args against the seeded in-memory `session` and assert the
    `ToolOutput` + the resulting DB state. Cover an **accept path** and a **reject path**
@@ -87,7 +87,7 @@ Each pillar agent must come with two kinds of runnable tests:
 2. **Agent-scenario tests** (`tests/agents/`) — feed natural-language **questions into the
    agent itself**, run the graph, and capture the **final text answer** (and/or assert the
    intended DB change). This is how we see what the agent actually replies. Keep a small
-   list of questions per pillar (e.g. "Sign monitor CAT-123 to person 7", "How many free
+   list of questions per domain (e.g. "Sign monitor CAT-123 to person 7", "How many free
    secret ports are there?") so reviewers can eyeball the answers.
 
 `python -m pytest -q` and `python scripts/verify.py` must stay green before every PR.
@@ -105,4 +105,4 @@ Each pillar agent must come with two kinds of runnable tests:
 1. Clone + venv + `pip install -r requirements.txt` (see `HANDOFF.md`).
 2. `python -m data.generation.generate_data 30 --seed 42 && python scripts/verify.py && python -m pytest -q` — all green.
 3. Read `tools/base.py`, `data/services/base.py`, and `tools/logistics_tools.py::sign_equipment`.
-4. Build your pillar's repo → tools → tests, copying the reference.
+4. Build your domain's repo → tools → tests, copying the reference.
