@@ -47,11 +47,21 @@ def build_graph() -> Any:
     return g.compile()
 
 
-def run(user_message: str, runtime: AgentRuntime) -> str:
-    """Entry point for one chat turn. Returns the user-facing answer."""
+def run(messages: list[dict], runtime: AgentRuntime) -> str:
+    """Entry point for one chat turn. `messages` is the full OpenAI-format history.
+    Returns the user-facing answer."""
+    user_message = next(
+        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+        "",
+    )
     graph = build_graph()
     final: GraphState = graph.invoke({
-        "runtime": runtime, "user_message": user_message,
-        "messages": [], "tool_to_call": None, "final_answer": None, "turn": 0,
+        "runtime": runtime,
+        "user_message": user_message,
+        "conversation_history": messages,
+        "messages": [],
+        "tool_to_call": None,
+        "final_answer": None,
+        "turn": 0,
     })
     return final.get("final_answer") or "(no answer)"

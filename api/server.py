@@ -1,5 +1,7 @@
 import time
 import uuid
+from typing import Optional
+
 from fastapi import FastAPI, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
@@ -20,10 +22,32 @@ def get_db():
     finally:
         db.close()
 
-def get_personal_number(x_personal_number: str = Header(None, alias="X-Personal-Number")) -> str:
-    if not x_personal_number:
-        raise HTTPException(status_code=401, detail="X-Personal-Number header is required")
-    return x_personal_number
+
+def get_personal_number(
+    x_personal_number: Optional[str] = Header(default=None, alias="X-Personal-Number"),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+) -> str:
+    if x_personal_number:
+        return x_personal_number
+
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.replace("Bearer ", "").strip()
+
+    raise HTTPException(status_code=401, detail="Personal number is required")
+
+@app.get("/v1/models")
+def models():
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "my-orchestrator",
+                "object": "model",
+                "created": 0,
+                "owned_by": "local"
+            }
+        ]
+    }
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(
@@ -34,21 +58,20 @@ async def chat_completions(
     # Verify we have messages
     if not request.messages:
         raise HTTPException(status_code=400, detail="Messages array cannot be empty")
-        
-    latest_msg = request.messages[-1].content
-    
+
+    messages = [{"role": m.role, "content": m.content} for m in request.messages]
+
     # Authenticate user and get ToolContext
     ctx = authenticate(db, personal_number)
     if ctx is None:
         raise HTTPException(status_code=401, detail="Invalid or inactive personal number")
-        
+
     # Setup Agent Runtime
     runtime = AgentRuntime(ctx=ctx)
-    
+
     # Run graph
     try:
-        # Pass thread_id downstream if orchestrator eventually expects it
-        final_answer = orchestrator.run(user_message=latest_msg, runtime=runtime)
+        final_answer = orchestrator.run(messages=messages, runtime=runtime)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
         
