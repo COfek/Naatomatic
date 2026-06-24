@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 
-class GraphState(TypedDict, total=False):
+class GraphState(TypedDict):
     runtime: Any            # services.agent_runtime.AgentRuntime (session, llm, actor)
     user_message: str       # the latest user turn (derived from conversation_history)
     conversation_history: list[dict]  # full OpenAI-format message list from the client
