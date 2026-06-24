@@ -12,6 +12,6 @@ class GraphState(TypedDict, total=False):
     pillar: str | None      # chosen by the Router: network/logistics/guard_duty/adhoc/general_knowledge
     messages: list[dict]    # running ReAct transcript for the Worker
     tool_to_call: dict | None   # {"name": str, "args": dict} the Worker decided on
-    tool_result: Any        # ToolResult from the Tool Executor
+    tool_result: Any        # ToolOutput from the Tool Executor
     final_answer: str | None    # set when done -> Presenter formats it
     turn: int

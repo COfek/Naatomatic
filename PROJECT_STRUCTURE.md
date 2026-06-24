@@ -94,7 +94,7 @@ Naatomatic/
 3. **data/services/** — repositories: the *only* place that writes the DB, inside transactions.
    Tools and the Validator go through here.
 4. **tools/** — thin functions the model calls. Each tool: validate (rules/) → act (services/) →
-   return a `ToolResult`. No SQL or reasoning here.
+   return a `ToolOutput`. No SQL or reasoning here.
 5. **agents/** — the node graph that decides *which* tool to call. Router → Worker → Tool
    Executor → Validator → Presenter.
 6. **mcp/** — exposes tools/ over MCP so the model can call them.

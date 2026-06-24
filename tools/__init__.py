@@ -1,6 +1,6 @@
 """Tools exposed to the model (via MCP), grouped per pillar.
 
-Each tool is thin: validate (rules/) -> act (data/services/) -> return a ToolResult.
+Each tool is thin: validate (rules/) -> act (data/services/) -> return a ToolOutput.
 No SQL or reasoning here.
 
 Planned:

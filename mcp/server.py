@@ -28,7 +28,7 @@ def build_server():
     # TODO for the MCP owner:
     #   - resolve the caller's personal_number (MCP session / arg) -> ToolContext via authenticate()
     #   - for each spec in SPECS, register an MCP tool that calls registry.call_tool(ctx, name, **args)
-    #   - map ToolResult -> MCP response (ok -> value; not ok -> error + suggestions)
+    #   - map ToolOutput -> MCP response (ok -> value; not ok -> error + suggestions)
     _ = (SPECS, call_tool, authenticate, create_session, get_engine)
     raise NotImplementedError("Wire SPECS -> MCP tool registrations.")
 

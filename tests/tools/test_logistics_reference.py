@@ -14,7 +14,7 @@ from sqlalchemy import select
 from models import tables as t
 from models.enums import EquipmentKind, MonitorStatus, Population
 from tools.base import ToolContext
-from tools.logistics_tools import sign_equipment
+from tools.logistics_tools import SignEquipmentArgs, sign_equipment
 
 MANAGER = ["LOGISTICS_OFFICER"]
 
@@ -40,7 +40,7 @@ def test_sign_equipment_accept(session):
     session.commit()
     ctx = ToolContext(session=session, actor_personal_number="9999", roles=MANAGER)
 
-    res = sign_equipment(ctx, catalog_number="T-M1", personnel_id=p.id)
+    res = sign_equipment(ctx, SignEquipmentArgs(catalog_number="T-M1", personnel_id=p.id))
 
     assert res.ok, res.error
     assert session.get(t.EquipmentItem, "T-M1").signed_to == p.id
@@ -55,7 +55,7 @@ def test_sign_equipment_rejects_third_monitor(session):
     session.commit()
     ctx = ToolContext(session=session, actor_personal_number="9999", roles=MANAGER)
 
-    res = sign_equipment(ctx, catalog_number="T-M4", personnel_id=p.id)
+    res = sign_equipment(ctx, SignEquipmentArgs(catalog_number="T-M4", personnel_id=p.id))
 
     assert not res.ok                                   # HC-LOG-1 blocks it
     assert session.get(t.EquipmentItem, "T-M4").signed_to is None  # rolled back
@@ -67,6 +67,6 @@ def test_sign_requires_role(session):
     session.commit()
     ctx = ToolContext(session=session, actor_personal_number="9999", roles=[])  # no role
 
-    res = sign_equipment(ctx, catalog_number="T-M5", personnel_id=p.id)
+    res = sign_equipment(ctx, SignEquipmentArgs(catalog_number="T-M5", personnel_id=p.id))
 
     assert not res.ok and "LOGISTICS_OFFICER" in res.error

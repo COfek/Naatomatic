@@ -14,11 +14,11 @@ Tools never touch the session directly except through a repo. The base provides:
 Pattern for a mutating action (copy this shape in every mutating tool):
 
     repo = SomeRepo(ctx.session)
-    # 1. look up entities (return ToolResult.err with suggestions if not found)
+    # 1. look up entities (return ToolOutput.err with suggestions if not found)
     # 2. apply the proposed change to the ORM objects, then session.flush()
     # 3. violations = repo.validate([check_fn, ...]); if violations: rollback + err
     # 4. repo.transfer(...) / repo.audit(...)
-    # 5. repo.commit(); return ToolResult.of(...)
+    # 5. repo.commit(); return ToolOutput.of(...)
 """
 
 from __future__ import annotations

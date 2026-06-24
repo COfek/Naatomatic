@@ -2,15 +2,15 @@
 
 A **tool** is a plain function:
 
-    def tool_name(ctx: ToolContext, *, arg1: str, arg2: int = 0) -> ToolResult[...]:
+    def tool_name(ctx: ToolContext, *, arg1: str, arg2: int = 0) -> ToolOutput[...]:
         ...
 
 - First positional param is always `ctx` (carries the DB session + the acting user).
   It is NOT part of the tool's public schema.
 - All inputs the model supplies are **keyword-only** (after `*`) and **type-hinted**
   (the schema is generated from the hints).
-- The function returns a `ToolResult` — it does not raise for expected failures
-  (missing record, rule violation, permission denied); it returns `ToolResult.err(...)`.
+- The function returns a `ToolOutput` — it does not raise for expected failures
+  (missing record, rule violation, permission denied); it returns `ToolOutput.err(...)`.
   Only unexpected bugs raise.
 
 This is the single contract the registry, the MCP adapter, and the in-process
@@ -30,7 +30,7 @@ T = TypeVar("T")
 
 
 @dataclass(frozen=True)
-class ToolResult(Generic[T]):
+class ToolOutput(Generic[T]):
     """Uniform tool return. `ok=False` carries a human-readable `error`; `suggestions`
     holds 'did-you-mean' candidates (see fuzzy-reference rule, DESIGN §2)."""
 
@@ -40,12 +40,12 @@ class ToolResult(Generic[T]):
     suggestions: list[str] = field(default_factory=list)
 
     @staticmethod
-    def of(value: T) -> "ToolResult[T]":
-        return ToolResult(value=value, ok=True)
+    def of(value: T) -> "ToolOutput[T]":
+        return ToolOutput(value=value, ok=True)
 
     @staticmethod
-    def err(message: str, suggestions: list[str] | None = None) -> "ToolResult[Any]":
-        return ToolResult(value=None, ok=False, error=message, suggestions=suggestions or [])
+    def err(message: str, suggestions: list[str] | None = None) -> "ToolOutput[Any]":
+        return ToolOutput(value=None, ok=False, error=message, suggestions=suggestions or [])
 
 
 @dataclass
@@ -62,13 +62,13 @@ class ToolContext:
     roles: list[str] = field(default_factory=list)
 
 
-def require_role(ctx: ToolContext, role: str) -> ToolResult[Any] | None:
-    """Return an error ToolResult if the actor lacks `role`, else None.
+def require_role(ctx: ToolContext, role: str) -> ToolOutput[Any] | None:
+    """Return an error ToolOutput if the actor lacks `role`, else None.
 
     Usage:  if (deny := require_role(ctx, "LOGISTICS_OFFICER")): return deny
     """
     if role not in (ctx.roles or []):
-        return ToolResult.err(f"This action requires the {role} role.")
+        return ToolOutput.err(f"This action requires the {role} role.")
     return None
 
 
@@ -91,9 +91,35 @@ def _json_property(annotation: Any) -> dict[str, Any]:
     return {"type": "string"}
 
 
+def args_model(fn: Callable[..., Any]) -> type[Any] | None:
+    """Return the tool's Pydantic args model — the type of its first non-`ctx`
+    parameter when that type is a `pydantic.BaseModel`. The standard tool shape is
+    `def tool(ctx: ToolContext, args: SomeArgs) -> ToolOutput`. Returns None for
+    not-yet-converted stubs (keyword params)."""
+    from pydantic import BaseModel  # local import keeps base importable without pydantic
+
+    hints = get_type_hints(fn)
+    for name in inspect.signature(fn).parameters:
+        if name == "ctx":
+            continue
+        ann = hints.get(name)
+        if isinstance(ann, type) and issubclass(ann, BaseModel):
+            return ann
+        return None  # first real arg isn't a model -> legacy/stub
+    return None
+
+
 def tool_spec(fn: Callable[..., Any]) -> dict[str, Any]:
-    """Build an OpenAI/MCP-style function spec from a tool's signature.
-    Skips the leading `ctx` parameter; required = params without defaults."""
+    """Build an OpenAI/MCP-style function spec for a tool.
+
+    Preferred: the tool takes a Pydantic args model -> use its JSON schema (carries
+    each field's description). Fallback: keyword-param introspection (stubs)."""
+    model = args_model(fn)
+    description = (fn.__doc__ or "").strip().split("\n\n")[0]
+    if model is not None:
+        return {"name": fn.__name__, "description": description,
+                "parameters": model.model_json_schema()}
+    # fallback for not-yet-converted stubs
     hints = get_type_hints(fn)
     props: dict[str, Any] = {}
     required: list[str] = []
@@ -103,8 +129,5 @@ def tool_spec(fn: Callable[..., Any]) -> dict[str, Any]:
         props[name] = _json_property(hints.get(name, str))
         if param.default is inspect.Parameter.empty:
             required.append(name)
-    return {
-        "name": fn.__name__,
-        "description": (fn.__doc__ or "").strip().split("\n\n")[0],
-        "parameters": {"type": "object", "properties": props, "required": required},
-    }
+    return {"name": fn.__name__, "description": description,
+            "parameters": {"type": "object", "properties": props, "required": required}}

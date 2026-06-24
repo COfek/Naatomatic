@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from services.llm import LLMClient
-from tools.base import ToolContext, ToolResult
+from tools.base import ToolContext, ToolOutput
 from tools.registry import call_tool
 
 
@@ -20,7 +20,7 @@ class AgentRuntime:
     tool_metrics: list = field(default_factory=list)
     llm_metrics: list = field(default_factory=list)
 
-    def run_tool(self, name: str, **args) -> ToolResult:
+    def run_tool(self, name: str, **args) -> ToolOutput:
         """Execute a tool through the shared registry (records telemetry)."""
         result = call_tool(self.ctx, name, **args)
         self.tool_metrics.append({"tool": name, "ok": result.ok})

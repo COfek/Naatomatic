@@ -18,17 +18,26 @@ mcp/           expose tools/ over MCP                     ← stub
 
 ## The contracts (do not deviate)
 
-**Tool** = a plain function (see `tools/base.py` and the reference
-`tools/logistics_tools.py::sign_equipment`):
+**Tool** = a plain function whose inputs are ONE described Pydantic model (see
+`tools/base.py` and the reference `tools/logistics_tools.py::sign_equipment`):
 ```python
-def tool_name(ctx: ToolContext, *, arg1: str, arg2: int = 0) -> ToolResult[...]:
+class SignEquipmentArgs(BaseModel):
+    catalog_number: str = Field(description="Catalog number of the item to sign out.")
+    personnel_id: int = Field(description="Id of the person receiving the item.")
+
+def sign_equipment(ctx: ToolContext, args: SignEquipmentArgs) -> ToolOutput[dict]:
+    """One-line on WHEN to use this tool, then details. (The model reads this.)"""
 ```
-- `ctx` first (session + actor + roles); model inputs are keyword-only, type-hinted.
-- Return `ToolResult.of(value)` / `ToolResult.err(msg, suggestions=[...])` — **don't raise** for expected failures.
+- **Every tool input is a `pydantic` field with a `Field(description=...)`** — the
+  description is what the model sees (`tool_spec` builds the schema from the model).
+- `ctx` first (session + actor + roles); the second param is the args model.
+- **Every tool has a docstring** whose first line states the usage context (intent).
+- **All tools return `ToolOutput`** — `ToolOutput.of(value)` / `ToolOutput.err(msg, suggestions=[...])`; **never raise** for expected failures.
 - Gate manager actions with `require_role(ctx, "…")`.
 - Tool names are a **single global namespace** — keep them unique (registry raises on a clash).
+- Code is **PEP 8 + clean code**: small functions, clear names, no dead code (the stubs above still use keyword params — convert each to its own `Args` model when you implement it).
 
-**Mutating tool pattern** (copy `sign_equipment` exactly): look up (err+suggestions if missing) → apply to ORM objects → `repo.validate([check_fns])` → on violations `repo.rollback()` + `ToolResult.err` → else `repo.transfer/audit` → `repo.commit()` → `ToolResult.of(...)`. **Hard rules are enforced by re-using `rules/constraints.py` checks** against the pending state — never reimplement a rule in a tool.
+**Mutating tool pattern** (copy `sign_equipment` exactly): look up (err+suggestions if missing) → apply to ORM objects → `repo.validate([check_fns])` → on violations `repo.rollback()` + `ToolOutput.err` → else `repo.transfer/audit` → `repo.commit()` → `ToolOutput.of(...)`. **Hard rules are enforced by re-using `rules/constraints.py` checks** against the pending state — never reimplement a rule in a tool.
 
 **Repository** = the only DB writer (`data/services/base.py` + `logistics_repo.py`).
 Every mutation records `audit(...)` (and `transfer(...)` for equipment) — that's R2-9.
@@ -59,16 +68,29 @@ rules, base, registry, state) change only by coordination.
 
 ## Rules everyone follows
 - **Agent proposes, engine decides** — rules live in `rules/`; tools call them.
-- **No fabricated args; did-you-mean** — missing input → ask; bad id → `ToolResult.err(..., suggestions=...)` (`DESIGN.md` §2).
+- **No fabricated args; did-you-mean** — missing input → ask; bad id → `ToolOutput.err(..., suggestions=...)` (`DESIGN.md` §2).
+- **Structured communication, never free text between agents/nodes.** Nodes pass the
+  typed `GraphState`; tool inputs/outputs are Pydantic/`ToolOutput`, not prose. **Refer
+  to entities by id** (`personnel_id`, `catalog_number`, `ticket_id`, `port_id`), never
+  by a loose name. Natural-language is produced in exactly one place: the **Presenter**.
 - **Derive, don't duplicate** (port/jack classification, formatting status).
 - **Audit every mutation; equipment moves write a transfer.**
 - **General Knowledge is read-only and self-only** for personal data.
 - **Never commit** `naatomatic.db`, `dashboard.html`, `.venv` (already git-ignored).
 
-## Testing (required, per pillar)
-- Every tool: a test in `tests/tools/` with an **accept path** and a **reject path** (rule violation rolls back, DB unchanged) — copy `tests/tools/test_logistics_reference.py`.
-- Agent-scenario tests go in `tests/agents/`.
-- `python -m pytest -q` and `python scripts/verify.py` must stay green before every PR.
+## Testing (required — every deployed agent ships BOTH)
+Each pillar agent must come with two kinds of runnable tests:
+1. **Tool-call unit tests** (`tests/tools/`) — deterministic, **no model in the loop**.
+   Call the tool with fixed args against the seeded in-memory `session` and assert the
+   `ToolOutput` + the resulting DB state. Cover an **accept path** and a **reject path**
+   (rule violation rolls back, DB unchanged). Copy `tests/tools/test_logistics_reference.py`.
+2. **Agent-scenario tests** (`tests/agents/`) — feed natural-language **questions into the
+   agent itself**, run the graph, and capture the **final text answer** (and/or assert the
+   intended DB change). This is how we see what the agent actually replies. Keep a small
+   list of questions per pillar (e.g. "Sign monitor CAT-123 to person 7", "How many free
+   secret ports are there?") so reviewers can eyeball the answers.
+
+`python -m pytest -q` and `python scripts/verify.py` must stay green before every PR.
 
 ## Git workflow
 - Branch per task (`feat/network-tools`); small PRs; one reviewer.

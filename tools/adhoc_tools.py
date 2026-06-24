@@ -4,23 +4,23 @@ Implement following the Logistics reference.
 
 from __future__ import annotations
 
-from tools.base import ToolContext, ToolResult
+from tools.base import ToolContext, ToolOutput
 
 
 def create_adhoc_mission(ctx: ToolContext, *, title: str, start_date: str,
-                         days: int = 1) -> ToolResult[dict]:
+                         days: int = 1) -> ToolOutput[dict]:
     """SHIFT_MANAGER: create a sudden mission (0.5 x days burden, shifts pool)."""
     raise NotImplementedError
 
-def assign_adhoc_mission(ctx: ToolContext, *, mission_id: int, personnel_id: int) -> ToolResult[dict]:
+def assign_adhoc_mission(ctx: ToolContext, *, mission_id: int, personnel_id: int) -> ToolOutput[dict]:
     """SHIFT_MANAGER: assign (validate HC-GD-0/5/6/7; balance via shifts pool)."""
     raise NotImplementedError
 
-def suggest_adhoc_assignment(ctx: ToolContext, *, mission_id: int) -> ToolResult[dict]:
+def suggest_adhoc_assignment(ctx: ToolContext, *, mission_id: int) -> ToolOutput[dict]:
     """Preview the recommended person(s)."""
     raise NotImplementedError
 
-def mark_adhoc_completed(ctx: ToolContext, *, mission_id: int) -> ToolResult[dict]:
+def mark_adhoc_completed(ctx: ToolContext, *, mission_id: int) -> ToolOutput[dict]:
     """Mark a mission COMPLETED."""
     raise NotImplementedError
 

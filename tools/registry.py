@@ -19,7 +19,7 @@ from tools import (
     logistics_tools,
     network_tools,
 )
-from tools.base import ToolContext, ToolResult, tool_spec
+from tools.base import ToolContext, ToolOutput, args_model, tool_spec
 
 # Pillar name -> its module (used for routing: the Router picks a pillar,
 # the Worker is offered that pillar's tools).
@@ -31,7 +31,7 @@ PILLARS = {
     "general_knowledge": general_knowledge_tools,
 }
 
-TOOLS_BY_NAME: dict[str, Callable[..., ToolResult]] = {}
+TOOLS_BY_NAME: dict[str, Callable[..., ToolOutput]] = {}
 MUTATING: set[str] = set()
 PILLAR_OF: dict[str, str] = {}
 
@@ -51,10 +51,18 @@ def specs_for(pillar: str) -> list[dict]:
     return [tool_spec(fn) for n, fn in TOOLS_BY_NAME.items() if PILLAR_OF[n] == pillar]
 
 
-def call_tool(ctx: ToolContext, name: str, **args) -> ToolResult:
-    """Dispatch a tool by name. Unknown name -> error (the caller can offer
-    did-you-mean over TOOLS_BY_NAME keys). Used by the executor and the MCP server."""
+def call_tool(ctx: ToolContext, name: str, **args) -> ToolOutput:
+    """Dispatch a tool by name, validating the model-supplied `args` through the
+    tool's Pydantic args model. Unknown name / invalid args -> error ToolOutput
+    (the caller can offer did-you-mean over TOOLS_BY_NAME keys). Used by both the
+    in-process executor and the MCP server."""
     fn = TOOLS_BY_NAME.get(name)
     if fn is None:
-        return ToolResult.err(f"Unknown tool: {name}")
-    return fn(ctx, **args)
+        return ToolOutput.err(f"Unknown tool: {name}")
+    model = args_model(fn)
+    if model is not None:
+        try:
+            return fn(ctx, model(**args))          # validated args object
+        except Exception as exc:                   # pydantic ValidationError etc.
+            return ToolOutput.err(f"Invalid arguments for {name}: {exc}")
+    return fn(ctx, **args)                          # legacy/stub (keyword args)

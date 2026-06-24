@@ -8,60 +8,60 @@ from __future__ import annotations
 
 from typing import Literal
 
-from tools.base import ToolContext, ToolResult
+from tools.base import ToolContext, ToolOutput
 
 
-def create_shifts(ctx: ToolContext, *, source: str) -> ToolResult[dict]:
+def create_shifts(ctx: ToolContext, *, source: str) -> ToolOutput[dict]:
     """SHIFT_MANAGER: ingest the date list (chat text or CSV/Excel path), confirm, create."""
     raise NotImplementedError
 
 def create_shift(ctx: ToolContext, *, type: Literal["WEEK_LONG", "SINGLE_DAY", "SUPPORT"],
-                 start_date: str) -> ToolResult[dict]:
+                 start_date: str) -> ToolOutput[dict]:
     """SHIFT_MANAGER: create a single shift (the edge case)."""
     raise NotImplementedError
 
-def assign_shift(ctx: ToolContext, *, shift_id: int, personnel_id: int) -> ToolResult[dict]:
+def assign_shift(ctx: ToolContext, *, shift_id: int, personnel_id: int) -> ToolOutput[dict]:
     """SHIFT_MANAGER: commit a manual assignment (validate HC-GD-0/5/6/7/9 + quotas)."""
     raise NotImplementedError
 
-def auto_assign(ctx: ToolContext, *, shift_ids: list) -> ToolResult[dict]:
+def auto_assign(ctx: ToolContext, *, shift_ids: list) -> ToolOutput[dict]:
     """SHIFT_MANAGER: assign a batch, balanced by the Justice Table."""
     raise NotImplementedError
 
-def suggest_assignment(ctx: ToolContext, *, shift_id: int) -> ToolResult[dict]:
+def suggest_assignment(ctx: ToolContext, *, shift_id: int) -> ToolOutput[dict]:
     """Preview the recommended person(s) without committing."""
     raise NotImplementedError
 
-def swap_shifts(ctx: ToolContext, *, shift_a: int, shift_b: int) -> ToolResult[dict]:
+def swap_shifts(ctx: ToolContext, *, shift_a: int, shift_b: int) -> ToolOutput[dict]:
     """SHIFT_MANAGER: swap two assignees (same population + same type; re-validate)."""
     raise NotImplementedError
 
 def add_date_block(ctx: ToolContext, *, start_date: str, end_date: str, reason: str,
-                   level: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]) -> ToolResult[dict]:
+                   level: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]) -> ToolOutput[dict]:
     """A soldier submits a constraint (-> PENDING; reject if it overlaps own assignment)."""
     raise NotImplementedError
 
-def review_date_blocks(ctx: ToolContext) -> ToolResult[list]:
+def review_date_blocks(ctx: ToolContext) -> ToolOutput[list]:
     """SHIFT_MANAGER: list pending constraints to approve/reject."""
     raise NotImplementedError
 
-def approve_date_block(ctx: ToolContext, *, block_id: int) -> ToolResult[dict]:
+def approve_date_block(ctx: ToolContext, *, block_id: int) -> ToolOutput[dict]:
     """SHIFT_MANAGER: approve a pending constraint (re-check conflicts — GD-7)."""
     raise NotImplementedError
 
-def list_my_shifts(ctx: ToolContext, *, include_past: bool = True) -> ToolResult[list]:
+def list_my_shifts(ctx: ToolContext, *, include_past: bool = True) -> ToolOutput[list]:
     """A soldier's own assignments, upcoming and past (self only)."""
     raise NotImplementedError
 
-def get_justice_table(ctx: ToolContext, *, population: str | None = None) -> ToolResult[list]:
+def get_justice_table(ctx: ToolContext, *, population: str | None = None) -> ToolOutput[list]:
     """Read-only fairness standings."""
     raise NotImplementedError
 
-def generate_support_roster(ctx: ToolContext, *, quarter: str) -> ToolResult[dict]:
+def generate_support_roster(ctx: ToolContext, *, quarter: str) -> ToolOutput[dict]:
     """SHIFT_MANAGER / maintenance: tile a quarter into daily+weekend SUPPORT slots, assign ahead."""
     raise NotImplementedError
 
-def check_support_coverage(ctx: ToolContext, *, start_date: str, end_date: str) -> ToolResult[dict]:
+def check_support_coverage(ctx: ToolContext, *, start_date: str, end_date: str) -> ToolOutput[dict]:
     """Read-only: report gaps/overlaps in the SUPPORT roster."""
     raise NotImplementedError
 
