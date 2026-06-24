@@ -10,11 +10,19 @@ from __future__ import annotations
 from typing import Any
 
 
+import json
+from phoenix.otel import register
+from opentelemetry.trace import Tracer
+from openinference.semconv.trace import SpanAttributes
+
 from agents.nodes import presenter, router, tool_executor, validator, worker
 from agents.state import GraphState
 from services.agent_runtime import AgentRuntime
 
 MAX_TURNS = 20
+
+TRACER_PROVIDER = register(project_name="Naatomatic", verbose=False)
+TRACER: Tracer = TRACER_PROVIDER.get_tracer(__name__)
 
 
 def _route_after_worker(state: GraphState) -> str:
@@ -49,22 +57,28 @@ def build_graph() -> Any:
 def run(messages: list[dict], runtime: AgentRuntime) -> str:
     """Entry point for one chat turn. `messages` is the full OpenAI-format history.
     Returns the user-facing answer."""
-    user_message = next(
-        (m["content"] for m in reversed(messages) if m.get("role") == "user"),
-        "",
-    )
-    graph = build_graph()
-    try:
-        final: GraphState = graph.invoke({
-            "runtime": runtime,
-            "user_message": user_message,
-            "conversation_history": messages,
-            "messages": [],
-            "tool_to_call": None,
-            "final_answer": None,
-            "turn": 0,
-        })
-        answer = final.get("final_answer") or "(no answer)"
-    except Exception as e:
-        answer = f"graph error: {repr(e)}"
-    return answer
+    with TRACER.start_as_current_span("orchestrator.run") as span:
+        span.set_attribute(SpanAttributes.INPUT_VALUE, json.dumps({"messages": messages}))
+        user_message = next(
+            (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+            "",
+        )
+        graph = build_graph()
+        try:
+            final: GraphState = graph.invoke({
+                "runtime": runtime,
+                "user_message": user_message,
+                "conversation_history": messages,
+                "messages": [],
+                "tool_to_call": None,
+                "final_answer": None,
+                "turn": 0,
+            })
+            answer = final.get("final_answer") or "(no answer)"
+        except Exception as e:
+            span.record_exception(e)
+            answer = f"graph error: {repr(e)}"
+        
+        span.set_attribute(SpanAttributes.OUTPUT_VALUE, answer)
+        return answer
+
