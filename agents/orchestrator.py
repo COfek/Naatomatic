@@ -6,10 +6,9 @@
 `langgraph` is imported lazily so this module loads without it. Add `langgraph`
 to requirements when implementing.
 """
-
 from __future__ import annotations
-
 from typing import Any
+
 
 from agents.nodes import presenter, router, tool_executor, validator, worker
 from agents.state import GraphState
@@ -55,13 +54,17 @@ def run(messages: list[dict], runtime: AgentRuntime) -> str:
         "",
     )
     graph = build_graph()
-    final: GraphState = graph.invoke({
-        "runtime": runtime,
-        "user_message": user_message,
-        "conversation_history": messages,
-        "messages": [],
-        "tool_to_call": None,
-        "final_answer": None,
-        "turn": 0,
-    })
-    return final.get("final_answer") or "(no answer)"
+    try:
+        final: GraphState = graph.invoke({
+            "runtime": runtime,
+            "user_message": user_message,
+            "conversation_history": messages,
+            "messages": [],
+            "tool_to_call": None,
+            "final_answer": None,
+            "turn": 0,
+        })
+        answer = final.get("final_answer") or "(no answer)"
+    except Exception as e:
+        answer = f"graph error: {repr(e)}"
+    return answer
