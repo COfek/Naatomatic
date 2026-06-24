@@ -8,3 +8,5 @@ langgraph
 langchain
 langchain-openai
 python-dotenv
+arize-phoenix
+openinference-instrumentation-openai
