@@ -38,10 +38,10 @@ def build_graph() -> Any:
     from langgraph.graph import END, START, StateGraph
 
     g = StateGraph(GraphState)
-    #g.add_node("router", router.run)
+    g.add_node("router", router.run)
     g.add_node("worker", worker.run)
     g.add_node("tool_executor", tool_executor.run)
-    #g.add_node("validator", validator.run)
+    g.add_node("validator", validator.run)
     g.add_node("presenter", presenter.run)
 
     g.add_edge(START, "router")

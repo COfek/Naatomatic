@@ -1,31 +1,47 @@
-"""LLM client wrapper — STUB. One place that talks to the model (Claude via
-LangChain `langchain-anthropic`). Nodes call this, never the SDK directly, so the
-model/params/telemetry live in one spot.
+"""LLM client wrapper — the one place that talks to the model. Nodes call this,
+never the SDK directly, so the model/params live in one spot.
 
-Add to requirements when implementing: `langchain`, `langchain-anthropic`.
+Using OpenRouter (OpenAI-API-compatible) here, since that's the key in hand. Set
+OPENAI_API_KEY (your OpenRouter key) and OPENAI_BASE_URL=https://openrouter.ai/api/v1
+in the environment before running.
 """
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
-# Latest capable Claude models (see claude-api reference): opus claude-opus-4-8,
-# sonnet claude-sonnet-4-6, haiku claude-haiku-4-5-20251001.
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "openai/gpt-4o-mini"
 
 
 class LLMClient:
     def __init__(self, model: str = DEFAULT_MODEL, temperature: float = 0.0) -> None:
         self.model = model
         self.temperature = temperature
+        self._chat = None  # built lazily so importing this module needs no API key
 
-    def call_structured_output(self, *, messages: list[dict], schema: Any) -> Any:
-        """Call the model and return a validated object of `schema` (pydantic).
-        Used by Router (intent) and Presenter."""
-        raise NotImplementedError
+    def _client(self):
+        if self._chat is None:
+            from langchain_openai import ChatOpenAI
+            self._chat = ChatOpenAI(
+                model=self.model,
+                temperature=self.temperature,
+                base_url=os.environ.get("OPENAI_BASE_URL"),
+            )
+        return self._chat
 
-    def call_with_tools(self, *, messages: list[dict], tools: list[dict],
+    def call_structured_output(self, *, messages: list, schema: Any) -> Any:
+        """Call the model and return a validated instance of `schema` (a pydantic
+        model). Used by the Router to classify intent."""
+        return self._client().with_structured_output(schema).invoke(messages)
+
+    def call_with_tools(self, *, messages: list, tools: list[dict],
                         tool_choice: str = "auto") -> Any:
-        """Native tool-calling turn: returns the model's chosen tool call(s) or a
-        final message. Used by the Worker (ReAct loop)."""
-        raise NotImplementedError
+        """Native tool-calling turn: returns the model's response message — either
+        a tool call (`.tool_calls`) or a final answer (`.content`). Used by the
+        Worker (ReAct loop)."""
+        chat = self._client()
+        if tools:
+            formatted = [{"type": "function", "function": spec} for spec in tools]
+            chat = chat.bind_tools(formatted, tool_choice=tool_choice)
+        return chat.invoke(messages)
