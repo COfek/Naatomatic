@@ -5,7 +5,8 @@ SQLAlchemy + SQLite, local, chat-based multi-agent system for managing the
 **CombatAI** branch. Repo: <https://github.com/COfek/Naatomatic>
 
 > Read `DESIGN.md` first — it's the single source of truth. `PROJECT_STRUCTURE.md`
-> is the target layout. This file is just how to get running and what's next.
+> is the target layout. **`IMPLEMENTATION_GUIDE.md`** has the build contracts + the
+> 4-person work split (read it before coding). This file is just how to get running.
 
 ---
 
