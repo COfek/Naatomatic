@@ -1,8 +1,10 @@
 import time
 import uuid
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Depends, Header, HTTPException
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
 from models.db import get_engine, create_session
@@ -12,6 +14,11 @@ from agents import orchestrator
 from api.schemas import ChatCompletionRequest, ChatCompletionResponse, ChatChoice, ChatChoiceMessage
 
 app = FastAPI(title="Naatomatic API", version="1.0.0")
+
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+_STATIC_DIR.mkdir(exist_ok=True)
+(_STATIC_DIR / "charts").mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 engine = get_engine()
 

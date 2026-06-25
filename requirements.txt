@@ -10,3 +10,5 @@ langchain-openai
 python-dotenv
 arize-phoenix
 openinference-instrumentation-openai
+matplotlib>=3.7
+numpy>=1.24

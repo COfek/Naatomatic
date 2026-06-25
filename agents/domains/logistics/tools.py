@@ -13,7 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from data.services.logistics_repo import LogisticsRepo
-from models.enums import ComputerStatus, MonitorStatus
+from models.enums import ComputerStatus, MonitorStatus, TicketStatus
 from rules.constraints import check_hc_log_1, check_hc_log_2
 from tool_infra.base import ToolContext, ToolOutput, require_role
 
