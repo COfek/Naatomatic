@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents.domains.general_knowledge import tools as general_knowledge_tools
+from tools import general_knowledge_tools
 
 PROMPT = (
     "You are the branch help desk. Explain how the system works (fairness, "

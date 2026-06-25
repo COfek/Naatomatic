@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents.domains.adhoc import tools as adhoc_tools
+from tools import adhoc_tools
 
 PROMPT = (
     "You are the AdHoc Missions assistant. Help create and assign sudden missions "

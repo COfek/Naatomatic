@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents.domains.guard_duty import tools as guard_duty_tools
+from tools import guard_duty_tools
 
 PROMPT = (
     "You are the Guard Duty & Support assistant. Help with shifts, the Justice "

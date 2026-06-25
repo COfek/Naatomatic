@@ -3,7 +3,7 @@ Router exposes for this domain. (Pattern for all domain configs.)"""
 
 from __future__ import annotations
 
-from agents.domains.logistics import tools as logistics_tools
+from tools import logistics_tools
 
 PROMPT = (
     "You are the Logistics assistant for the CombatAI branch. Help with equipment "

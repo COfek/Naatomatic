@@ -12,11 +12,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from agents.domains.network import tools as network_tools
-from agents.domains.logistics import tools as logistics_tools
-from agents.domains.guard_duty import tools as guard_duty_tools
-from agents.domains.adhoc import tools as adhoc_tools
-from agents.domains.general_knowledge import tools as general_knowledge_tools
+from tools import (
+    adhoc_tools,
+    general_knowledge_tools,
+    guard_duty_tools,
+    logistics_tools,
+    network_tools,
+)
 from tool_infra.base import ToolContext, ToolOutput, args_model, tool_spec
 
 # Domain name -> its tools module (used for routing: the Router picks a domain,

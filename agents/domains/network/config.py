@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agents.domains.network import tools as network_tools
+from tools import network_tools
 
 PROMPT = (
     "You are the Network assistant. Help open workstation connections to the "
