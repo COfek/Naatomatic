@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from data.services.base import Repository
 from models import tables as t
-from models.enums import ComputerStatus, EquipmentKind, MonitorStatus, TicketType
+from models.enums import ComputerStatus, EquipmentKind, MonitorStatus
 
 
 class LogisticsRepo(Repository):
@@ -44,31 +44,7 @@ class LogisticsRepo(Repository):
             select(t.Personnel).where(t.Personnel.personal_number == personal_number)
         )
 
-    def get_open_tickets_for(self, personnel_id: int) -> list[t.Ticket]:
-        from models.enums import TicketStatus, TicketType
-        return list(self.session.scalars(
-            select(t.Ticket).where(
-                t.Ticket.requester_id == personnel_id,
-                t.Ticket.type == TicketType.EQUIPMENT_REQUEST.value,
-                t.Ticket.status == TicketStatus.OPEN.value,
-            )
-        ).all())
-
     # --- mutations (apply only; the tool validates + commits) ---------------
-    def create_ticket(self, *, requester_id: int, subject: str,
-                      description: str | None = None, payload: dict | None = None) -> t.Ticket:
-        """Add an EQUIPMENT_REQUEST ticket to the session (caller must commit)."""
-        ticket = t.Ticket(
-            type=TicketType.EQUIPMENT_REQUEST,
-            requester_id=requester_id,
-            subject=subject,
-            description=description,
-            payload=payload,
-        )
-        self.session.add(ticket)
-        self.session.flush()  # populate ticket.id before returning
-        return ticket
-
     def sign_to(self, item: t.EquipmentItem, personnel_id: int) -> None:
         """Apply: hand `item` to a person. Computers go IN_USE; clears reservation.
         Does NOT commit — the tool validates then commits/rolls back."""

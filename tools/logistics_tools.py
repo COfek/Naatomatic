@@ -13,7 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from data.services.logistics_repo import LogisticsRepo
-from models.enums import ComputerStatus, MonitorStatus, TicketStatus
+from models.enums import ComputerStatus, MonitorStatus
 from rules.constraints import check_hc_log_1, check_hc_log_2
 from tools.base import ToolContext, ToolOutput, require_role
 
@@ -76,94 +76,6 @@ def sign_equipment(ctx: ToolContext, args: SignEquipmentArgs) -> ToolOutput[dict
 def return_equipment(ctx: ToolContext, *, catalog_number: str) -> ToolOutput[dict]:
     """Return a signed item to inventory (computer -> READY_TO_USE; clears signed_to)."""
     raise NotImplementedError
-
-class CreateEquipmentRequestArgs(BaseModel):
-    """Args for opening an equipment request ticket."""
-
-    kind: Literal["MONITOR", "COMPUTER"] = Field(description="Type of equipment being requested.")
-    classification: str | None = Field(
-        default=None,
-        description="Required classification for computers: CIVILIAN, GLOBAL, SECRET, or TOP_SECRET. Leave empty for monitors.",
-    )
-    description: str | None = Field(
-        default=None,
-        description="Optional details or justification for the request.",
-    )
-
-
-def create_equipment_request(ctx: ToolContext, args: CreateEquipmentRequestArgs) -> ToolOutput[dict]:
-    """Open an EQUIPMENT_REQUEST ticket on behalf of the authenticated user.
-
-    Any authenticated user may open a request. A LOGISTICS_OFFICER will process
-    it and assign equipment when available.
-    """
-    if ctx.actor_personal_number is None:
-        return ToolOutput.err("No authenticated user — cannot open a request.")
-
-    repo = LogisticsRepo(ctx.session)
-
-    requester = repo.get_personnel_by_personal_number(ctx.actor_personal_number)
-    if requester is None:
-        return ToolOutput.err(f"No personnel record for personal number {ctx.actor_personal_number}.")
-
-    subject = f"{args.kind} request"
-    if args.classification:
-        subject += f" ({args.classification})"
-
-    payload: dict = {"kind": args.kind}
-    if args.classification:
-        payload["classification"] = args.classification
-
-    ticket = repo.create_ticket(
-        requester_id=requester.id,
-        subject=subject,
-        description=args.description,
-        payload=payload,
-    )
-
-    repo.audit(
-        actor=ctx.actor_personal_number,
-        action="create_equipment_request",
-        entity_type="ticket",
-        entity_id=str(ticket.id),
-        before=None,
-        after={"status": TicketStatus.OPEN.value, "subject": subject, "requester_id": requester.id},
-    )
-    repo.commit()
-
-    return ToolOutput.of({
-        "ticket_id": ticket.id,
-        "status": TicketStatus.OPEN.value,
-        "kind": args.kind,
-        "classification": args.classification,
-        "subject": subject,
-        "note": "Request opened. A logistics officer will review and assign equipment.",
-    })
-
-def list_my_open_tickets(ctx: ToolContext) -> ToolOutput[list]:
-    """List all open EQUIPMENT_REQUEST tickets submitted by the authenticated user."""
-    if ctx.actor_personal_number is None:
-        return ToolOutput.err("No authenticated user.")
-
-    repo = LogisticsRepo(ctx.session)
-
-    requester = repo.get_personnel_by_personal_number(ctx.actor_personal_number)
-    if requester is None:
-        return ToolOutput.err(f"No personnel record for personal number {ctx.actor_personal_number}.")
-
-    tickets = repo.get_open_tickets_for(requester.id)
-    return ToolOutput.of([
-        {
-            "ticket_id": ticket.id,
-            "subject": ticket.subject,
-            "status": ticket.status,
-            "kind": (ticket.payload or {}).get("kind"),
-            "classification": (ticket.payload or {}).get("classification"),
-            "created_at": str(ticket.created_at),
-        }
-        for ticket in tickets
-    ])
-
 
 def resolve_equipment_ticket(ctx: ToolContext, *, ticket_id: int, catalog_number: str) -> ToolOutput[dict]:
     """Resolve an equipment ticket: re-validate, sign over, set handover_pending,
@@ -258,8 +170,8 @@ def generate_logistics_dashboard(ctx: ToolContext, args: GenerateLogisticsDashbo
     })
 
 
-TOOLS = (sign_equipment, return_equipment, create_equipment_request, list_my_open_tickets,
-         resolve_equipment_ticket, set_equipment_status, decommission_item, query_inventory,
+TOOLS = (sign_equipment, return_equipment, resolve_equipment_ticket,
+         set_equipment_status, decommission_item, query_inventory,
          generate_logistics_dashboard)
 MUTATING = {sign_equipment.__name__, return_equipment.__name__, resolve_equipment_ticket.__name__,
             set_equipment_status.__name__, decommission_item.__name__}

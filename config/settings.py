@@ -17,7 +17,7 @@ load_dotenv()
 DB_PATH = Path(__file__).resolve().parent.parent / "naatomatic.db"
 
 OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-DEFAULT_LLM_MODEL: str = "deepseek/deepseek-v4-pro"
+DEFAULT_LLM_MODEL: str = "deepseek/deepseek-v4-flash"
 
 # --- Dashboard / chart rendering ---
 CHARTS_DIR: Path = Path(__file__).resolve().parent.parent / "static" / "charts"

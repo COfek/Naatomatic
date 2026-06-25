@@ -17,6 +17,7 @@ distorted in paraphrase.
 | `05-fairness-explained.md` | Balancing & fairness mechanics, plain language | derived from design |
 | `06-roles-and-responsibilities.md` | Branch role-holders + staff list | בעלי תפקידים |
 | `07-site-and-general-procedures.md` | Elbit site security + general procedures | נהלים §2 + §3 |
+| `08-whatsapp-groups.md` | Branch 300 WhatsApp groups — main, building (אנשי אילן), and per-section | branch content |
 
 **Data-backed (not docs):** the live "branch structure" query (teams, **leaders +
 contacts**) and a person's **own details** read from the database (`OrgUnit`,

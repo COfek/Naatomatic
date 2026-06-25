@@ -18,6 +18,7 @@ from tools import (
     guard_duty_tools,
     logistics_tools,
     network_tools,
+    ticket_tools,
 )
 from tools.base import ToolContext, ToolOutput, args_model, tool_spec
 
@@ -29,6 +30,7 @@ DOMAINS = {
     "guard_duty": guard_duty_tools,
     "adhoc": adhoc_tools,
     "general_knowledge": general_knowledge_tools,
+    "tickets": ticket_tools,
 }
 
 TOOLS_BY_NAME: dict[str, Callable[..., ToolOutput]] = {}

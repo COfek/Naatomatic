@@ -35,6 +35,10 @@ _DOMAIN_DESCRIPTIONS = {
         "sudden one-off missions such as ceremonies, memorials, or volunteering "
         "that don't fit any other domain"
     ),
+    "tickets": (
+        "requests to open a service ticket, check ticket status, or list own tickets "
+        "(equipment, network, or guard duty)"
+    ),
 }
 
 ROUTER_PROMPT = (
@@ -45,7 +49,7 @@ ROUTER_PROMPT = (
 
 
 class _DomainChoice(BaseModel):
-    domain: Literal["general_knowledge", "network", "logistics", "guard_duty", "adhoc"]
+    domain: Literal["general_knowledge", "network", "logistics", "guard_duty", "adhoc", "tickets"]
 
 
 def _system_prompt_for(domain: str) -> str:
