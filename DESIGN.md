@@ -632,10 +632,6 @@ Static markdown under **`knowledge/`** (real branch content): `01-branch-intro` 
 
 ### Capabilities (agent tools — all read-only)
 - `explain(topic)` — retrieve + explain **any** knowledge doc in `knowledge/` (intro, open-networks, shift-readiness, infosec, fairness, roles, site procedures, glossary) **or** a system mechanic. If a topic isn't covered, it says so (no fabrication).
-- `get_branch_structure(filter?)` — the department→team tree with leaders and their contacts (OrgUnit + leader's phone/email), returned as a **nicely-formatted org tree** (and may render a visual). Shared info — not personal.
-- `get_my_details(personnel)` — a **comprehensive self-view** (self only): personal details (rank, population, team, contacts), duty flags, **range-qualification status**, current equipment (incl. any `handover_pending`) and **transfer history**, network ports/settings, **past and upcoming** shifts / SUPPORT / ad-hoc, Justice-Table standing, and active date-blocks. Essentially "everything about me."
-- `get_shift_readiness(personnel)` — range-qualification status + steps/file/SmartBase links to renew (HC-GD-9).
-- `get_resource(name)` — serve a file or link (weapon-carry file, SmartBase tests `SMARTBASE_TEST_URL` / weapon-form `SMARTBASE_WEAPON_FORM_URL`, Kitbag `KITBAG_URL`).
 
 ### Notes
 - **Read-only & privacy-scoped (strict):** it never changes data. A member can ask **anything about themselves** — details, equipment + history, past/future shifts, network settings, readiness — but **only about themselves**; it must refuse requests for another person's private data. Branch **structure** (teams, leaders, contacts) is the one shared, non-personal exception.
