@@ -7,7 +7,7 @@ import importlib
 from pathlib import Path
 from typing import Literal
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from agents.state import GraphState
@@ -52,6 +52,18 @@ class _DomainChoice(BaseModel):
     domain: Literal["general_knowledge", "network", "logistics", "guard_duty", "adhoc", "tickets"]
 
 
+_ROLE_TO_LC = {"user": HumanMessage, "assistant": AIMessage}
+
+
+def _prior_history_to_lc(history: list[dict]) -> list:
+    """Convert OpenAI-format history (excluding the last/current user message) to LangChain messages."""
+    return [
+        _ROLE_TO_LC[m["role"]](content=m.get("content", ""))
+        for m in history[:-1]
+        if m.get("role") in _ROLE_TO_LC
+    ]
+
+
 def _system_prompt_for(domain: str) -> str:
     config = importlib.import_module(f"agents.domains.{domain}.config")
     prompt = config.PROMPT
@@ -67,6 +79,7 @@ def run(state: GraphState) -> GraphState:
     choice: _DomainChoice = runtime.llm.call_structured_output(
         messages=[
             SystemMessage(content=ROUTER_PROMPT),
+            *_prior_history_to_lc(state["conversation_history"]),
             HumanMessage(content=state["user_message"]),
         ],
         schema=_DomainChoice,
@@ -74,6 +87,7 @@ def run(state: GraphState) -> GraphState:
     state["domain"] = choice.domain
     state["messages"] = [
         SystemMessage(content=_system_prompt_for(choice.domain)),
+        *_prior_history_to_lc(state["conversation_history"]),
         HumanMessage(content=state["user_message"]),
     ]
     return state

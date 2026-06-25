@@ -25,5 +25,5 @@ def query_infrastructure(ctx: ToolContext, *, switch: str | None = None) -> Tool
     raise NotImplementedError
 
 
-TOOLS = (resolve_network_ticket, release_port, count_free_ports, query_infrastructure)
+TOOLS = ()
 MUTATING = {resolve_network_ticket.__name__, release_port.__name__}
