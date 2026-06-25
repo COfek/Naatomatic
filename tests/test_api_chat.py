@@ -18,7 +18,7 @@ def test_chat_completions_missing_auth():
         "messages": [{"role": "user", "content": "Hello"}]
     })
     assert response.status_code == 401
-    assert "X-Personal-Number" in response.json()["detail"]
+    assert "Personal number" in response.json()["detail"]
 
 def test_chat_completions_empty_messages():
     """Test that an empty messages array is handled correctly."""

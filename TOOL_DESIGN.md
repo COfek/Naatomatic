@@ -319,3 +319,68 @@ This document organizes and lists all agent tools defined under the `tools/` dir
 * **Description:** Sets mission status to `COMPLETED`.
 * **Arguments:**
   * `mission_id: int`
+
+---
+
+## IV. Shared Scheduling & Assignment Flow
+
+To avoid code duplication and ensure correct, consistent scheduling across both Guard Duty and AdHoc domains, a shared **`SchedulingService`** will be implemented in `services/scheduling.py`. Both domain tools will invoke this service for previewing and performing assignments.
+
+### 1. Interface
+```python
+class SchedulingService:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def recommend_assignment(
+        self,
+        *,
+        start_date: date,
+        end_date: date,
+        eligible_population: t.Population | None = None,
+        required_rank: t.Rank | None = None,
+        duty_type: t.ShiftType | Literal["ADHOC"],
+    ) -> dict[str, Any]:
+        """
+        Determines the best primary and reserve candidates.
+        Returns:
+            {
+                "primary_id": int | None,
+                "reserve_id": int | None,
+                "warnings": list[str]  # e.g., if a soft constraint was overridden
+            }
+        """
+```
+
+### 2. Assignment & Scoring Pipeline
+1. **Eligibility Filtering**:
+   - Filter `t.Personnel` who are `active == True`.
+   - Match targeted `eligible_population` and `required_rank` (`HC-GD-0`).
+   - Check corresponding eligibility flags: `can_do_week_long`, `can_do_single_day`, `can_do_support`, `can_do_adhoc` (`HC-GD-6`).
+   - Ensure range-qualification is active for armed guard shifts (`HC-GD-9`).
+   - Exclude anyone with active assignments (shifts, support, ad-hoc) that overlap the target range (`HC-GD-7`).
+   - Exclude anyone with `APPROVED`, `CRITICAL` date blocks overlapping the range (`HC-GD-5`).
+
+2. **Constraint Tiering (Soft Constraints)**:
+   - Separate eligible personnel into tiers based on the highest level of overlapping soft constraints they have (`None` < `LOW` < `MEDIUM` < `HIGH`).
+   - Candidates with `None` (no constraints) are prioritized first. If none exist, fallback to `LOW`, then `MEDIUM`, then `HIGH`.
+   - Overriding a soft constraint will automatically append a warning note detailing the constraint and its level.
+
+3. **Burden and Quota Scoring**:
+   - **Keva (for Shifts):**
+     - Target base quota: `2` (WEEK_LONG) or `4` (SINGLE_DAY).
+     - Calculate effective requirement: `quota - carryover`.
+     - Exclude Keva members who have already reached their effective requirement this calendar year.
+     - Rank by the number of shifts of the given type completed so far (lowest first) to balance the load.
+   - **Sadir (for Shifts & Ad-Hoc):**
+     - Rank by `shifts_burden_points` from the Justice Table (lowest first). Ad-hoc adds `0.5 * days` burden.
+   - **Sadir (for Support):**
+     - Rank by `support_burden_points` from the Justice Table (lowest first). Weekend shifts add `2` burden points, weekday adds `1`.
+
+4. **Tie-Breaking**:
+   - If scores/burdens are equal, select the candidate with the **longest time since their last assignment of that kind** (evaluated at the pool level: Shifts pool vs. Support pool).
+
+5. **Primary and Reserve Selection**:
+   - The top candidate from the scoring pipeline is selected as the primary.
+   - For `Shift` types, the next-best eligible candidate (a distinct individual, `HC-GD-8`) is selected as the reserve.
+
