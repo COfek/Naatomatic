@@ -31,3 +31,4 @@ dashboard.html
 # OS
 .DS_Store
 Thumbs.db
+static/charts

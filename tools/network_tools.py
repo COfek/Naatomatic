@@ -4,15 +4,8 @@ Mutating tools: apply -> validate (check_hc_net_1/2) -> commit/rollback -> audit
 
 from __future__ import annotations
 
-from typing import Literal
-
 from tools.base import ToolContext, ToolOutput
 
-
-def create_network_request(ctx: ToolContext, *, wall_jack_id: int,
-                           desired_classification: Literal["CIVILIAN", "GLOBAL", "SECRET", "TOP_SECRET"]) -> ToolOutput[dict]:
-    """Open a NETWORK_REQUEST ticket. payload = {wall_jack_id, desired_classification}."""
-    raise NotImplementedError
 
 def resolve_network_ticket(ctx: ToolContext, *, ticket_id: int, port_id: int) -> ToolOutput[dict]:
     """NETWORK_MANAGER: connect the jack to the port, allocate to requester, close ticket
@@ -27,15 +20,10 @@ def count_free_ports(ctx: ToolContext, *, classification: str | None = None) -> 
     """Read-only: count of DISCONNECTED ports (optionally by classification)."""
     raise NotImplementedError
 
-def get_ticket_status(ctx: ToolContext, *, ticket_id: int) -> ToolOutput[dict]:
-    """Read-only: status of a ticket (any type)."""
-    raise NotImplementedError
-
 def query_infrastructure(ctx: ToolContext, *, switch: str | None = None) -> ToolOutput[list]:
     """Read-only: switches / ports / wall-jacks reporting."""
     raise NotImplementedError
 
 
-TOOLS = (create_network_request, resolve_network_ticket, release_port,
-         count_free_ports, get_ticket_status, query_infrastructure)
+TOOLS = (resolve_network_ticket, release_port, count_free_ports, query_infrastructure)
 MUTATING = {resolve_network_ticket.__name__, release_port.__name__}

@@ -37,6 +37,7 @@ class Classification(str, enum.Enum):
 class TicketType(str, enum.Enum):
     NETWORK_REQUEST = "NETWORK_REQUEST"
     EQUIPMENT_REQUEST = "EQUIPMENT_REQUEST"
+    GUARD_DUTY_REQUEST = "GUARD_DUTY_REQUEST"
 
 
 class TicketStatus(str, enum.Enum):
