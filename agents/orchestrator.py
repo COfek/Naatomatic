@@ -21,7 +21,7 @@ from services.agent_runtime import AgentRuntime
 
 MAX_TURNS = 20
 
-TRACER_PROVIDER = register(project_name="Naatomatic", verbose=False)
+TRACER_PROVIDER = register(project_name="Naatomatic", auto_instrument=True)
 TRACER: Tracer = TRACER_PROVIDER.get_tracer(__name__)
 
 
