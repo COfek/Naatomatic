@@ -83,11 +83,10 @@ def test_scheduling_service_hard_constraints_exclude(session):
 def test_scheduling_service_soft_constraints_warning(session):
     """Test that soft constraints push candidates to a lower tier and trigger warnings."""
     # Suspend all Sadir except one to force selection of a candidate with a constraint
-    sadir_soldiers = session.query(t.Personnel).filter_by(population=Population.SADIR, active=True).all()
+    sadir_soldiers = session.query(t.Personnel).filter_by(population=Population.SADIR, active=True, can_do_adhoc=True).all()
     assert len(sadir_soldiers) >= 1
     
     target_soldier = sadir_soldiers[0]
-    target_soldier.can_do_adhoc = True
     for s in sadir_soldiers[1:]:
         s.active = False
     

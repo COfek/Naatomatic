@@ -84,8 +84,7 @@ def test_adhoc_mission(session: Session):
     session.add(mission)
     session.commit()
 
-    soldier = session.query(t.Personnel).filter_by(population=Population.SADIR, active=True).first()
-    soldier.can_do_adhoc = True
+    soldier = session.query(t.Personnel).filter_by(population=Population.SADIR, active=True, can_do_adhoc=True).first()
     session.commit()
 
     sug = suggest_adhoc_assignment(ctx, mission_id=mission.id)
@@ -98,3 +97,56 @@ def test_adhoc_mission(session: Session):
     m = session.get(t.AdHocMission, mission.id)
     assert m.assigned_to == sug.value["primary_id"]
     assert m.status == AssignmentStatus.ASSIGNED
+
+def test_create_and_complete_adhoc_mission(session: Session):
+    from tools.adhoc_tools import create_adhoc_mission, mark_adhoc_completed
+    ctx = ToolContext(session=session, actor_personal_number="test_actor", roles=["SHIFT_MANAGER"])
+    
+    # Create mission
+    create_res = create_adhoc_mission(ctx, title="Escort Duty", start_date="2026-10-01", days=2)
+    assert create_res.ok
+    mission_id = create_res.value["mission_id"]
+
+    # Assign it
+    soldier = session.query(t.Personnel).filter_by(population=Population.SADIR, active=True, can_do_adhoc=True).first()
+    session.commit()
+    
+    assign_res = assign_adhoc_mission(ctx, mission_id=mission_id, personnel_id=soldier.id)
+    assert assign_res.ok, assign_res.error
+
+    # Get initial burden points
+    jt = session.query(t.JusticeTable).filter_by(personnel_id=soldier.id).first()
+    if not jt:
+        jt = t.JusticeTable(personnel_id=soldier.id, period_start=datetime.date.today())
+        session.add(jt)
+        session.commit()
+    initial_points = jt.shifts_burden_points
+
+    # Complete it
+    complete_res = mark_adhoc_completed(ctx, mission_id=mission_id)
+    assert complete_res.ok
+    assert complete_res.value["status"] == "COMPLETED"
+    assert complete_res.value["burden_added_to_assignee"] == 1.0  # 0.5 * 2 days
+
+    # Verify burden points increased
+    jt = session.query(t.JusticeTable).filter_by(personnel_id=soldier.id).first()
+    assert jt.shifts_burden_points == initial_points + 1.0
+
+def test_get_mission_list(session: Session):
+    from tools.adhoc_tools import get_mission_list
+    ctx = ToolContext(session=session, actor_personal_number="test_actor", roles=[])
+    
+    # Just verify the read-only query doesn't crash and returns the seeded data
+    res = get_mission_list(ctx)
+    assert res.ok
+    assert isinstance(res.value, list)
+    
+    # Filter by OPEN
+    res_open = get_mission_list(ctx, status="OPEN")
+    assert res_open.ok
+    for m in res_open.value:
+        assert m["status"] == "OPEN"
+        
+    # Invalid status
+    res_err = get_mission_list(ctx, status="FAKE_STATUS")
+    assert not res_err.ok
